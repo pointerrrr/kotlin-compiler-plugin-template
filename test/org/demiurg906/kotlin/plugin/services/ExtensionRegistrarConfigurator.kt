@@ -1,5 +1,7 @@
 package org.demiurg906.kotlin.plugin.services
 
+import org.demiurg906.kotlin.plugin.FirPluginPrototypeComponentRegistrar
+import org.demiurg906.kotlin.plugin.FirPluginPrototypeExtensionRegistrar
 import org.jetbrains.kotlin.backend.common.extensions.IrGenerationExtension
 import org.jetbrains.kotlin.compiler.plugin.CompilerPluginRegistrar
 import org.jetbrains.kotlin.config.CompilerConfiguration
@@ -17,5 +19,6 @@ class ExtensionRegistrarConfigurator(testServices: TestServices) : EnvironmentCo
     ) {
         FirExtensionRegistrarAdapter.registerExtension(SimplePluginRegistrar())
         IrGenerationExtension.registerExtension(SimpleIrGenerationExtension())
+        FirExtensionRegistrarAdapter.registerExtension(FirPluginPrototypeExtensionRegistrar())
     }
 }

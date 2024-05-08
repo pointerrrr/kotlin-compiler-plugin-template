@@ -1,8 +1,9 @@
 import org.jetbrains.kotlin.gradle.tasks.KotlinCompile
+import org.jetbrains.kotlin.gradle.dsl.KotlinVersion
 
 plugins {
     java
-    kotlin("jvm") version "2.0.0-RC2"
+    id("org.jetbrains.kotlin.jvm") version "2.0.0-RC2"
 }
 group = "org.demiurg906.kotlin.plugin"
 version = "0.1"
@@ -30,7 +31,7 @@ dependencies {
         compileOnly(it)
         testImplementation(it)
     }
-
+    compileOnly("org.jetbrains.kotlin:kotlin-compiler-embeddable:2.0.0-RC2")
     testRuntimeOnly("org.jetbrains.kotlin:kotlin-test:$kotlinVersion")
     testRuntimeOnly("org.jetbrains.kotlin:kotlin-script-runtime:$kotlinVersion")
     testRuntimeOnly("org.jetbrains.kotlin:kotlin-annotations-jvm:$kotlinVersion")
@@ -87,3 +88,17 @@ fun Test.setLibraryProperty(propName: String, jarName: String) {
         ?: return
     systemProperty(propName, path)
 }
+
+kotlin {
+    compilerOptions {
+        languageVersion.set(KotlinVersion.KOTLIN_2_0)
+        val path = "${project.rootDir}/build/libs/plugin.jar"
+        freeCompilerArgs.set(freeCompilerArgs.get() + "-Xplugin=$path")
+    }
+}
+
+java {
+    toolchain {
+        languageVersion.set(JavaLanguageVersion.of(17))
+    }
+} 
