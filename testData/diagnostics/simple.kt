@@ -29,10 +29,10 @@ fun dummy2()
 {
     if (true)
     {
-
+        val x = 5
     }
     else
     {
-
+        val y = 5
     }
 }
