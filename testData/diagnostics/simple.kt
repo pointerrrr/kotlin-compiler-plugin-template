@@ -24,3 +24,15 @@ fun <!FUNCTION_WITH_DUMMY_NAME!>dummyTest<!>()
 
     }
 }
+
+fun dummy2()
+{
+    if (true)
+    {
+
+    }
+    else
+    {
+
+    }
+}

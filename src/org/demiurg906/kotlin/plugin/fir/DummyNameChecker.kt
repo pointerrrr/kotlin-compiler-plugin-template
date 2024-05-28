@@ -54,7 +54,7 @@ object DummyNameChecker : FirSimpleFunctionChecker(MppCheckerKind.Common) {
         //file.appendText(variableUsage.toString())
 
         val tree = createTree(cfg.enterNode, 0, mutableMapOf(), IntRef())
-        file.appendText(tree.printNode())
+        file.appendText("{${tree.toGraph()}}")
     }
 
     private fun createTree(cfgNode : CFGNode<*>, depth : Int, visited : MutableMap<CFGNode<*>, Node>, count : IntRef) : Node
@@ -73,6 +73,7 @@ object DummyNameChecker : FirSimpleFunctionChecker(MppCheckerKind.Common) {
             else
             {
                 visited[it]?.Parents?.add(node)
+                node.Children.add(visited[it]!!)
             }
         }
         return node
@@ -83,10 +84,6 @@ object DummyNameChecker : FirSimpleFunctionChecker(MppCheckerKind.Common) {
         visited.add(cfgNode)
         file.appendText(cfgNode.id.toString() + "=".repeat(cfgNode.level) + cfgNode.render() + "\n")
         file.appendText("rendering ${cfgNode.followingNodes.count()} nodes\n")
-        if(cfgNode.flow is PersistentFlow)
-        {
-
-        }
         cfgNode.followingNodes.forEach{
             if(visited.contains(it)) {
                 file.appendText("Backedge\n")
@@ -127,7 +124,11 @@ object DummyNameChecker : FirSimpleFunctionChecker(MppCheckerKind.Common) {
             }
             printNode(it, file, usageInformation, visited)
         }
+
+
     }
+
+
 
     private fun upUsage(usage : Usage) : Usage
     {
@@ -156,6 +157,18 @@ class Node (val Id : Int, val Name : String, val Depth : Int, val CFGNode : CFGN
         val children = Children.joinToString { "{ ${it.printNode(visited)}}"}
         val parents = Parents.joinToString { it.Id.toString() }
         return "\"Id\": $Id, \"children\": [$children], \"parents\": [$parents]"
+    }
+    fun toGraph(visited : MutableSet<Node> = mutableSetOf()) : String
+    {
+        if(visited.contains(this))
+            return ""
+        visited.add(this)
+        var result = this.Id.toString() + "\n"
+        this.Children.forEach{
+            result += "${this.Id} ${it.Id}\n"
+            result += it.toGraph(visited) + "\n"
+        }
+        return result
     }
 }
 
