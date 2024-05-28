@@ -6,7 +6,7 @@ plugins {
     id("org.jetbrains.kotlin.jvm") version "2.0.0-RC2"
 }
 group = "org.demiurg906.kotlin.plugin"
-version = "0.1"
+//version = "0.1"
 
 val kotlinVersion: String by project.properties
 
@@ -93,7 +93,7 @@ kotlin {
     compilerOptions {
         languageVersion.set(KotlinVersion.KOTLIN_2_0)
         val path = "${project.rootDir}/build/libs/plugin.jar"
-        freeCompilerArgs.set(freeCompilerArgs.get() + "-Xplugin=$path")
+        //freeCompilerArgs.set(freeCompilerArgs.get() + "-Xplugin=$path")
     }
 }
 
