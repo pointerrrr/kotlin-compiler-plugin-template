@@ -55,7 +55,7 @@ object DummyNameChecker : FirSimpleFunctionChecker(MppCheckerKind.Common) {
         //printNode(cfg.enterNode, file, variableUsage, mutableSetOf())
         //file.appendText(variableUsage.toString())
 
-        val tree = createTree(cfg.enterNode, 0, mutableMapOf(), IntRef(), UsageInformation(0, UsageInformation(-1)))
+        val tree = createTree(cfg.enterNode, 0, mutableMapOf(), IntRef(), UsageInformation(0, true, UsageInformation(-1, false)))
         file.appendText("{${tree.printNode()}}")
     }
 
@@ -66,25 +66,31 @@ object DummyNameChecker : FirSimpleFunctionChecker(MppCheckerKind.Common) {
         visited[cfgNode] = node
 
         cfgNode.followingNodes.forEach{
+            val edge = cfgNode.edgeTo(it)
+            if (edge.kind != EdgeKind.Forward)
+            {
+
+            }
             if (!visited.contains(it))
             {
                 val localUsageInfo =  when (it)
                 {
-                    is FunctionEnterNode, is SplitPostponedLambdasNode, is AnonymousFunctionExpressionNode,
-                    is BlockEnterNode, is WhenEnterNode, is LoopEnterNode, is TryExpressionEnterNode,
-                    is TryMainBlockEnterNode, is CatchClauseEnterNode, is FinallyBlockEnterNode ->
-                        UsageInformation(node.UsageInformation.Id + 1, node.UsageInformation)
-                    is FunctionExitNode, is PostponedLambdaExitNode, is BlockExitNode, is WhenExitNode, is LoopExitNode,
-                    is TryMainBlockExitNode, is CatchClauseExitNode, is FinallyBlockExitNode, is TryExpressionExitNode ->
-                        if(node.UsageInformation.Parent == null){
-                            node.UsageInformation
+                    is EnterNodeMarker -> {
+                        val executedAtMostOnce = it.previousNodes.fold(false) { acc, cfgNode ->
+                            acc && cfgNode.edgeTo(it).kind != EdgeKind.CfgBackward
                         }
-                    else
-                        {
-                            node.UsageInformation.Parent
-                        }
-                    else -> node.UsageInformation
+                        UsageInformation(node.UsageInformation.Id + 1, executedAtMostOnce, node.UsageInformation)
+                    }
+                    is ExitNodeMarker -> {
+
+                        node.UsageInformation.Parent ?: node.UsageInformation
+                    }
+                    else -> {
+                        node.UsageInformation
+                    }
                 }
+
+
 
                 val child = createTree(it, depth + 1, visited, count, localUsageInfo)
                 child.Parents.add(node)
@@ -98,25 +104,7 @@ object DummyNameChecker : FirSimpleFunctionChecker(MppCheckerKind.Common) {
         }
         return node
     }
-
-    fun printNode(cfgNode : CFGNode<*>, file : File, usageInformation : MutableMap<Name,Usage>, visited : MutableSet<CFGNode<*>>)
-    {
-        visited.add(cfgNode)
-        file.appendText(cfgNode.id.toString() + "=".repeat(cfgNode.level) + cfgNode.render() + "\n")
-        file.appendText("rendering ${cfgNode.followingNodes.count()} nodes\n")
-        cfgNode.followingNodes.forEach{
-            if(visited.contains(it)) {
-                file.appendText("Backedge\n")
-                return
-            }
-            printNode(it, file, usageInformation, visited)
-        }
-
-
-    }
-
-
-
+    
     private fun upUsage(usage : Usage) : Usage
     {
         return when (usage) {
@@ -164,8 +152,9 @@ enum class Usage
 {
     BOTTOM, ZERO, ONCE, INFINITE , AT_MOST_ONCE, AT_LEAST_ONCE, TOP
 }
-class UsageInformation (val Id: Int, val Parent : UsageInformation? = null)
+class UsageInformation (val Id: Int, val executedAtMostOnce : Boolean, val Parent : UsageInformation? = null)
 {
     var UsageAmount: Usage = Usage.BOTTOM
+
     val Variables : MutableMap<String, UsageInformation> = mutableMapOf()
 }
