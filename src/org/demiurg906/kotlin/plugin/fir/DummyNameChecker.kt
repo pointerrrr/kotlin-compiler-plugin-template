@@ -52,14 +52,16 @@ object DummyNameChecker : FirSimpleFunctionChecker(MppCheckerKind.Common) {
         //file.appendText(variableUsage.toString())
         val functionArgScopeInformation = ScopeInformation(true)
         val tree = createTree(cfg.enterNode, 0, mutableMapOf(), IntRef(), functionArgScopeInformation)
-        file.appendText("{${tree.printNode()}}")
+        //file.appendText("{${tree.printNode()}}")
         val bareTree = buildBareTree(cfg.enterNode, IntRef())
+        file.appendText(printBareTree(bareTree))
         val usage = usageOnBareTree(bareTree)
 
     }
 
 
-    private fun usageOnBareTree(bareNode : BareNode<CFGNode<*>>, visited: MutableMap<CFGNode<*>, BareNode<ScopeInformation>> = mutableMapOf()) : BareNode<ScopeInformation>
+    private fun usageOnBareTree(bareNode : BareNode<CFGNode<*>>, visited: MutableMap<CFGNode<*>,
+            BareNode<ScopeInformation>> = mutableMapOf()) : BareNode<ScopeInformation>
     {
         val executedAtMostOnce = bareNode.Parents.keys.fold(true) { acc, cfgNode ->
             acc && (!bareNode.Parents[cfgNode]!!.isBack)
@@ -122,6 +124,21 @@ object DummyNameChecker : FirSimpleFunctionChecker(MppCheckerKind.Common) {
                 val child = usageOnBareTree(it.key, visited)
                 node.Children[child] = it.value
                 child.Parents[node] = it.value
+                it.key.Parents.forEach{ kvp ->
+                    if(it.key.Parents.count() > 1)
+                        throw Exception("")
+                    val parent = visited[kvp.key.CFGNode]
+                    if(parent == null) {
+                        if (kvp.key.CFGNode != it.key.CFGNode)
+                        {
+                            throw Exception("huh")
+                        }
+                    }
+                    else {
+                        child.Parents[parent] = kvp.value
+                        parent.Children[child] = kvp.value
+                    }
+                }
             }
         }
 
@@ -174,25 +191,57 @@ object DummyNameChecker : FirSimpleFunctionChecker(MppCheckerKind.Common) {
         val node = BareNode(count.element, cfgNode)
         visited[cfgNode] = node
         count.element += 1
+        if(cfgNode.followingNodes.isNotEmpty()) {
+            cfgNode.followingNodes.forEach {
+                val edge = cfgNode.edgeTo(it).kind
+                if (!visited.contains(it)) {
+                    val child = buildBareTree(it, count, visited)
+                    node.Children[child] = edge
+                    child.Parents[node] = edge
+                } else {
+                    val child = visited[it]!!
 
-        cfgNode.followingNodes.forEach {
-            val edge = cfgNode.edgeTo(it).kind
-            if(!visited.contains(it))
-            {
-                val child = buildBareTree(it, count, visited)
-                node.Children[child] = edge
-                child.Parents[node] = edge
+                    node.Children[child] = edge
+                    child.Parents[node] = edge
+                }
             }
-            else
-            {
-                val child = visited[it]!!
+        }
+        else {
+            cfgNode.previousNodes.forEach {
+                val edge = cfgNode.edgeFrom(it).kind
+                if(!visited.contains(it))
+                {
 
-                node.Children[child] = edge
-                child.Parents[node] = edge
+                }
             }
         }
 
         return node
+    }
+
+    fun printBareTree(bareNode: BareNode<CFGNode<*>>, visited: MutableSet<CFGNode<*>> = mutableSetOf()) : String
+    {
+        if (visited.contains(bareNode.CFGNode))
+            return ""
+        var result = ""
+        visited.add(bareNode.CFGNode)
+        bareNode.Children.keys.forEach{
+            result += printBareNode(bareNode)
+            result += printBareTree(it, visited)
+        }
+        return result
+    }
+
+    fun printBareNode(bareNode : BareNode<CFGNode<*>>) : String
+    {
+        var res = ""
+        bareNode.Parents.forEach{
+            res += "${bareNode.Id} ${it.key.Id} \n"
+        }
+        bareNode.Children.forEach{
+            res += "${bareNode.Id} ${it.key.Id}\n"
+        }
+        return res
     }
 
     // pre-condition: node.CFGNode is not part of visited
