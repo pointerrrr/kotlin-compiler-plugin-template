@@ -15,7 +15,6 @@ import org.jetbrains.kotlin.fir.resolve.dfa.controlFlowGraph
 import org.jetbrains.kotlin.fir.symbols.impl.FirFunctionSymbol
 import org.jetbrains.kotlin.name.Name
 import java.io.File
-import javax.inject.Scope
 import kotlin.jvm.internal.Ref.IntRef
 
 object PluginErrors {
@@ -56,15 +55,16 @@ object DummyNameChecker : FirSimpleFunctionChecker(MppCheckerKind.Common) {
         file.appendText("{${tree.printNode()}}")
         val bareTree = buildBareTree(cfg.enterNode, IntRef())
         val usage = usageOnBareTree(bareTree)
+
     }
 
 
     private fun usageOnBareTree(bareNode : BareNode<CFGNode<*>>, visited: MutableMap<CFGNode<*>, BareNode<ScopeInformation>> = mutableMapOf()) : BareNode<ScopeInformation>
     {
         val executedAtMostOnce = bareNode.Parents.keys.fold(true) { acc, cfgNode ->
-            acc && bareNode.Parents[cfgNode] == EdgeKind.Forward
+            acc && (!bareNode.Parents[cfgNode]!!.isBack)
         }
-        val parentCount = bareNode.Parents.count{it.value == EdgeKind.Forward}
+        val parentCount = bareNode.Parents.count{!it.value.isBack}
         val scopeInformation = when (bareNode.CFGNode)
         {
             is EnterNodeMarker -> {
@@ -76,44 +76,88 @@ object DummyNameChecker : FirSimpleFunctionChecker(MppCheckerKind.Common) {
                 }
                 else {
                     val parentScope = visited[bareNode.Parents.keys.first().CFGNode]?.CFGNode ?: ScopeInformation(executedAtMostOnce)
-                    copyScope(parentScope)
+                    ScopeInformation(executedAtMostOnce, copyScope(parentScope))
                 }
             }
             is ExitNodeMarker -> {
                 if (parentCount > 1) // converging branches
                 {
-                    val parentScopes = bareNode.Parents.filter { it.value == EdgeKind.Forward }.map{
+                    val parentScopes = bareNode.Parents.filter { !it.value.isBack }.map{
                         visited[it.key.CFGNode]!!.CFGNode
                     }
                     mergeScopes(parentScopes)
                 }
                 else
                 {
-                    copyScope(visited[bareNode.Parents.keys.first().CFGNode]!!.CFGNode.Parent ?: throw NullPointerException())
+                    val parentNode = bareNode.Parents.keys.first().CFGNode
+                    val parentScope = visited[parentNode]!!.CFGNode.Parent
+                    if (parentScope == null) {
+                        val nodeType = bareNode.CFGNode.edgeFrom(parentNode)
+                        throw NullPointerException()
+                    }
+                    copyScope(parentScope)
                 }
             }
             else -> {
                 if(parentCount > 1) {
                     throw Error("Parent count > 1 on marker")
                 }
+                if(parentCount == 0) {
+                    ScopeInformation(executedAtMostOnce)
+                }
                 else {
                     copyScope(visited[bareNode.Parents.keys.first().CFGNode]!!.CFGNode)
                 }
             }
         }
+        val node = BareNode(bareNode.Id, scopeInformation)
+        visited[bareNode.CFGNode] = node
         bareNode.Children.forEach{
-            if(it.key.Parents.count() == 1 || it.key.Parents.keys.all { visited.contains(it.CFGNode) || it.Parents[node] != EdgeKind.Forward })
+            if(it.key.Parents.count() == 1 || it.key.Parents.keys.all {
+                val edgeKind = it.Parents[bareNode]
+                    if(edgeKind == null)
+                        throw Exception()
+                visited.contains(it.CFGNode) || edgeKind.isBack })
             {
-                val child = usageOnBareTree(it.key, visited )
+                val child = usageOnBareTree(it.key, visited)
+                node.Children[child] = it.value
+                child.Parents[node] = it.value
             }
         }
-        val node = BareNode(bareNode.Id, scopeInformation)
+
         return node
     }
 
     private fun mergeScopes(scopeInformation : Collection<ScopeInformation>) : ScopeInformation
     {
-        throw NotImplementedError()
+        if (scopeInformation.count() == 1)
+            return scopeInformation.first()
+        return merge2Scopes(scopeInformation.first(), mergeScopes(scopeInformation.drop(1)))
+    }
+
+    private fun merge2Scopes(infoA :ScopeInformation, infoB: ScopeInformation) : ScopeInformation
+    {
+        val parent : ScopeInformation?
+        if(infoA.Parent == null || infoB.Parent == null)
+        {
+            parent = null
+        }
+        else
+        {
+            parent = merge2Scopes(infoA.Parent, infoB.Parent)
+        }
+        val ret = ScopeInformation(infoA.executedAtMostOnce && infoB.executedAtMostOnce, parent)
+        infoA.Variables.forEach{
+            ret.Variables[it.key] = it.value
+        }
+        infoB.Variables.forEach{
+            if(!ret.Variables.containsKey(it.key))
+                ret.Variables[it.key] = it.value
+            else {
+
+            }
+        }
+        return ret
     }
 
     private fun copyScope(scopeInformation: ScopeInformation) : ScopeInformation
@@ -189,7 +233,7 @@ object DummyNameChecker : FirSimpleFunctionChecker(MppCheckerKind.Common) {
                 }
                 else
                 {
-                    currentScope.Variables[name]!!.UsageAmount = Usage.INFINITE
+                    currentScope.Variables[name]!!.UsageAmount = Usage.UNKNOWN
                 }
             }
             else ->
@@ -292,7 +336,7 @@ object DummyNameChecker : FirSimpleFunctionChecker(MppCheckerKind.Common) {
                 }
                 else
                 {
-                    currentScope.Variables[name]!!.UsageAmount = Usage.INFINITE
+                    currentScope.Variables[name]!!.UsageAmount = Usage.UNKNOWN
                 }
             }
             is ExitNodeMarker -> {
@@ -317,10 +361,80 @@ object DummyNameChecker : FirSimpleFunctionChecker(MppCheckerKind.Common) {
         return when (usage) {
             Usage.BOTTOM -> Usage.ONCE
             Usage.ZERO -> Usage.ONCE
-            Usage.ONCE -> Usage.AT_LEAST_ONCE
-            Usage.AT_MOST_ONCE -> Usage.AT_LEAST_ONCE
-            Usage.AT_LEAST_ONCE -> Usage.INFINITE
+            Usage.ONCE -> Usage.ONCE_OR_MORE
+            Usage.AT_MOST_ONCE -> Usage.ONCE_OR_MORE
+            Usage.ONCE_OR_MORE -> Usage.UNKNOWN
             else -> usage
+        }
+    }
+
+    private fun mergeUsage(usageA : Usage, usageB : Usage) : Usage
+    {
+        return when (usageA)
+        {
+            Usage.BOTTOM -> {
+                return when (usageB) {
+                    Usage.BOTTOM -> Usage.BOTTOM
+                    Usage.ZERO -> Usage.ZERO
+                    Usage.ONCE -> Usage.AT_MOST_ONCE
+                    Usage.INFINITE -> Usage.UNKNOWN
+                    Usage.AT_MOST_ONCE -> Usage.AT_MOST_ONCE
+                    Usage.ONCE_OR_MORE -> Usage.UNKNOWN
+                    Usage.UNKNOWN -> Usage.UNKNOWN
+                }
+            }
+            Usage.ZERO -> {
+                return when (usageB){
+                    Usage.ONCE, Usage.AT_MOST_ONCE -> Usage.AT_MOST_ONCE
+                    Usage.INFINITE, Usage.ONCE_OR_MORE, Usage.UNKNOWN -> Usage.UNKNOWN
+                    Usage.ZERO, Usage.BOTTOM -> Usage.ZERO
+                }
+            }
+            Usage.ONCE -> {
+                return when (usageB) {
+                    Usage.BOTTOM -> Usage.AT_MOST_ONCE
+                    Usage.ZERO -> Usage.AT_MOST_ONCE
+                    Usage.ONCE -> Usage.ONCE
+                    Usage.INFINITE -> Usage.ONCE_OR_MORE
+                    Usage.AT_MOST_ONCE -> Usage.AT_MOST_ONCE
+                    Usage.ONCE_OR_MORE -> Usage.ONCE_OR_MORE
+                    Usage.UNKNOWN -> Usage.UNKNOWN
+                }
+            }
+            Usage.INFINITE -> {
+                return when (usageB) {
+                    Usage.BOTTOM -> Usage.UNKNOWN
+                    Usage.ZERO -> Usage.UNKNOWN
+                    Usage.ONCE -> Usage.ONCE_OR_MORE
+                    Usage.INFINITE -> Usage.INFINITE
+                    Usage.AT_MOST_ONCE -> Usage.UNKNOWN
+                    Usage.ONCE_OR_MORE -> Usage.ONCE_OR_MORE
+                    Usage.UNKNOWN -> Usage.UNKNOWN
+                }
+            }
+            Usage.AT_MOST_ONCE -> {
+                return when (usageB) {
+                    Usage.BOTTOM -> Usage.AT_MOST_ONCE
+                    Usage.ZERO -> Usage.AT_MOST_ONCE
+                    Usage.ONCE -> Usage.AT_MOST_ONCE
+                    Usage.INFINITE -> Usage.UNKNOWN
+                    Usage.AT_MOST_ONCE -> Usage.AT_MOST_ONCE
+                    Usage.ONCE_OR_MORE -> Usage.UNKNOWN
+                    Usage.UNKNOWN -> Usage.UNKNOWN
+                }
+            }
+            Usage.ONCE_OR_MORE -> {
+                return when (usageB) {
+                    Usage.BOTTOM -> Usage.UNKNOWN
+                    Usage.ZERO -> Usage.UNKNOWN
+                    Usage.ONCE -> Usage.ONCE_OR_MORE
+                    Usage.INFINITE -> Usage.ONCE_OR_MORE
+                    Usage.AT_MOST_ONCE -> Usage.UNKNOWN
+                    Usage.ONCE_OR_MORE -> Usage.ONCE_OR_MORE
+                    Usage.UNKNOWN -> Usage.UNKNOWN
+                }
+            }
+            Usage.UNKNOWN -> Usage.UNKNOWN
         }
     }
 
@@ -363,7 +477,7 @@ class Node (val Id : Int, val CFGNode : CFGNode<*>, val ScopeInformation : Scope
 
 enum class Usage
 {
-    BOTTOM, ZERO, ONCE, AT_MOST_ONCE, AT_LEAST_ONCE, INFINITE
+    BOTTOM, ZERO, ONCE, INFINITE, AT_MOST_ONCE, ONCE_OR_MORE, UNKNOWN
 }
 
 class ScopeInformation(val executedAtMostOnce: Boolean, val Parent : ScopeInformation? = null)
