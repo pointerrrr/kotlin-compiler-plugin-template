@@ -53,11 +53,120 @@ object DummyNameChecker : FirSimpleFunctionChecker(MppCheckerKind.Common) {
         val functionArgScopeInformation = ScopeInformation(true)
         val tree = createTree(cfg.enterNode, 0, mutableMapOf(), IntRef(), functionArgScopeInformation)
         //file.appendText("{${tree.printNode()}}")
-        val bareTree = buildBareTree(cfg.enterNode, IntRef())
-        file.appendText(printBareTree(bareTree))
-        val usage = usageOnBareTree(bareTree)
+        val wings = boneless(cfg.enterNode)
+        file.appendText(printResult(wings))
 
     }
+
+    fun printResult(info : Map<CFGNode<*>, ScopeInformation>, visited : MutableSet<CFGNode<*>> = mutableSetOf()) : String
+    {
+        var result = ""
+        info.forEach{
+            result += it.key.render() + " " + it.value.print() + "\n"
+        }
+
+        return result
+    }
+
+    // pre-condition: cfgNode is not part of visited and all parent of cfgNode are part of visited
+    private fun boneless(cfgNode : CFGNode<*>, visited: MutableMap<CFGNode<*>, ScopeInformation> = mutableMapOf()) : Map<CFGNode<*>,ScopeInformation>
+    {
+        val executedAtMostOnce = when (cfgNode)
+        {
+            is EnterNodeMarker -> {
+                cfgNode.previousNodes.all{ !cfgNode.edgeFrom(it).kind.isBack}
+            }
+            is ExitNodeMarker -> {
+                val parent = visited[cfgNode.previousNodes.first{ !cfgNode.edgeFrom(it).kind.isBack }]!!.Parent
+                parent?.executedAtMostOnce ?: true
+            }
+            else -> {
+                visited[cfgNode.previousNodes.first{ !cfgNode.edgeFrom(it).kind.isBack }]!!.executedAtMostOnce
+            }
+        }
+        val parentCount = cfgNode.previousNodes.count{ !cfgNode.edgeFrom(it).kind.isBack  }
+        val scopeInformation = when (cfgNode)
+        {
+            is EnterNodeMarker -> {
+                if(parentCount > 1) {
+                    throw Exception("Parent count > 1 on EnterNodeMarker")
+                }
+                else if (parentCount == 0) {
+                    ScopeInformation(executedAtMostOnce)
+                }
+                else {
+                    val parentScope = visited[cfgNode.previousNodes.first{!cfgNode.edgeFrom(it).kind.isBack}]!!
+                    ScopeInformation(executedAtMostOnce, copyScope(parentScope))
+                }
+            }
+            is ExitNodeMarker -> {
+                val previousScope = visited[cfgNode.previousNodes.first{!cfgNode.edgeFrom(it).kind.isBack}]
+                if (previousScope?.Parent == null)
+                {
+                    ScopeInformation(true)
+                }
+                else {
+                    copyScope(previousScope.Parent)
+                }
+            }
+            else -> {
+                if(parentCount > 1) {
+                    throw Error("Parent count > 1 on non-marker")
+                }
+                if(parentCount == 0) {
+                    ScopeInformation(executedAtMostOnce)
+                }
+                else {
+                    copyScope(visited[cfgNode.previousNodes.first()]!!)
+                }
+            }
+        }
+        visited[cfgNode] = scopeInformation
+        cfgNode.followingNodes.forEach {
+            when (it) {
+                is VariableDeclarationNode -> {
+                    val name = it.fir.name.asString()
+                    scopeInformation.Variables[name] = UsageInformation(Usage.BOTTOM, name, scopeInformation, true)
+                }
+                is QualifiedAccessNode -> {
+                    val name = it.fir.calleeReference.resolved?.name?.asString() ?: throw NullPointerException("callee is null")
+                    var atMostOnce = true
+                    var found = false
+                    var current : ScopeInformation? = scopeInformation
+
+                    if(!current!!.Variables.containsKey(name))
+                    {
+                        current = current.Parent
+                        while (current != null)
+                        {
+                            atMostOnce = atMostOnce && current.executedAtMostOnce
+                            if(current.Variables.containsKey(name))
+                            {
+                                found = true
+                                break
+                            }
+                            current = current.Parent
+                        }
+                    }
+                    if(found) {
+                        if (atMostOnce) {
+                            current!!.Variables[name]!!.UsageAmount = upUsage(current.Variables[name]!!.UsageAmount)
+                        } else {
+                            current!!.Variables[name]!!.UsageAmount = Usage.UNKNOWN
+                        }
+                    }
+                }
+                else -> {}
+            }
+        }
+        cfgNode.followingNodes.forEach {
+            if (!visited.containsKey(it))
+            if (it.previousNodes.all{ prev -> visited.containsKey(prev) || it.edgeFrom(prev).kind.isBack})
+                boneless(it, visited)
+        }
+        return visited
+    }
+
 
 
     private fun usageOnBareTree(bareNode : BareNode<CFGNode<*>>, visited: MutableMap<CFGNode<*>,
@@ -116,10 +225,8 @@ object DummyNameChecker : FirSimpleFunctionChecker(MppCheckerKind.Common) {
         visited[bareNode.CFGNode] = node
         bareNode.Children.forEach{
             if(it.key.Parents.count() == 1 || it.key.Parents.keys.all {
-                val edgeKind = it.Parents[bareNode]
-                    if(edgeKind == null)
-                        throw Exception()
-                visited.contains(it.CFGNode) || edgeKind.isBack })
+                val edgeKind = it.Parents[bareNode] ?: throw Exception()
+                    visited.contains(it.CFGNode) || edgeKind.isBack })
             {
                 val child = usageOnBareTree(it.key, visited)
                 node.Children[child] = it.value
@@ -181,8 +288,14 @@ object DummyNameChecker : FirSimpleFunctionChecker(MppCheckerKind.Common) {
     {
         val parentScope = if (scopeInformation.Parent != null) copyScope(scopeInformation.Parent) else null
         val ret = ScopeInformation(scopeInformation.executedAtMostOnce, parentScope)
-        scopeInformation.Variables.forEach{ ret.Variables[it.key] = it.value }
+        scopeInformation.Variables.forEach{ ret.Variables[it.key] = copyUsageInformation(it.value, ret) }
         return ret
+    }
+
+    private fun copyUsageInformation(usageInformation: UsageInformation, parentScope : ScopeInformation) : UsageInformation {
+        if (usageInformation.Parent == null)
+            return UsageInformation(usageInformation.UsageAmount, usageInformation.name, parentScope, usageInformation.topScope)
+        return UsageInformation(usageInformation.UsageAmount, usageInformation.name, parentScope, usageInformation.topScope, copyUsageInformation(usageInformation.Parent, parentScope))
     }
 
     // pre-condition: node is not part of visited
@@ -532,6 +645,17 @@ enum class Usage
 class ScopeInformation(val executedAtMostOnce: Boolean, val Parent : ScopeInformation? = null)
 {
     val Variables : MutableMap<String,UsageInformation> = mutableMapOf()
+
+    fun print() : String{
+        var result = executedAtMostOnce.toString() + "\n"
+        Variables.forEach{
+            result += it.key + " " + it.value.UsageAmount + "\n"
+        }
+        if (Parent != null) {
+            result = Parent.print() + "sub-scope:" + "\n" + result
+        }
+        return result
+    }
 }
 
 class UsageInformation (var UsageAmount : Usage, val name : String, val Scope : ScopeInformation, val topScope : Boolean, val Parent : UsageInformation? = null)
