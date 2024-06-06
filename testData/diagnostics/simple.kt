@@ -8,7 +8,7 @@ fun test() {
     s.<!UNRESOLVED_REFERENCE!>inc<!>() // should be an error
 }
 
-fun <!FUNCTION_WITH_DUMMY_NAME!>dummyTest<!>()
+/*fun <!FUNCTION_WITH_DUMMY_NAME!>dummyTest<!>()
 {
     val x = 5
     val a = x + 5
@@ -23,7 +23,7 @@ fun <!FUNCTION_WITH_DUMMY_NAME!>dummyTest<!>()
     {
 
     }
-}
+}*/
 
 /*fun dummy2()
 {
@@ -40,13 +40,13 @@ fun <!FUNCTION_WITH_DUMMY_NAME!>dummyTest<!>()
 fun dummy3()
 {
     val x = 5
-    val z = x + 3
+    x.inc()
 }
 
 import java.math.BigInteger
 
 
-fun dummyMain(args : Array<String>) //{args: ⊥} -- never used, so omitted for convenience reasons
+fun asdfMain(args : Array<String>) //{args: ⊥} -- never used, so omitted for convenience reasons
 {
     var m = readln().toBigInteger() // {m: ⊥}
     var p = readln().toBigInteger() // {m: ⊥, p: ⊥}

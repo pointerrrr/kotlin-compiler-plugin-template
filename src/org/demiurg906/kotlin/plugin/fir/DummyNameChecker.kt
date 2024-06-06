@@ -62,7 +62,7 @@ object DummyNameChecker : FirSimpleFunctionChecker(MppCheckerKind.Common) {
     {
         var result = ""
         info.forEach{
-            result += it.key.render() + " " + it.value.print() + "\n"
+            result += it.key.render() + "\n" + it.value.print() + "\n"
         }
 
         return result
@@ -100,13 +100,16 @@ object DummyNameChecker : FirSimpleFunctionChecker(MppCheckerKind.Common) {
                 }
             }
             is ExitNodeMarker -> {
-                val previousScope = visited[cfgNode.previousNodes.first{!cfgNode.edgeFrom(it).kind.isBack}]
-                if (previousScope?.Parent == null)
-                {
-                    ScopeInformation(true)
+                if(parentCount == 1) {
+                    val previousScope = visited[cfgNode.previousNodes.first { !cfgNode.edgeFrom(it).kind.isBack }]
+                    if (previousScope?.Parent == null) {
+                        ScopeInformation(true)
+                    } else {
+                        copyScope(previousScope.Parent)
+                    }
                 }
-                else {
-                    copyScope(previousScope.Parent)
+                else{
+                    mergeScopes(cfgNode.previousNodes.filter { !cfgNode.edgeFrom(it).kind.isBack }.map { visited[it]!! })
                 }
             }
             else -> {
@@ -117,47 +120,44 @@ object DummyNameChecker : FirSimpleFunctionChecker(MppCheckerKind.Common) {
                     ScopeInformation(executedAtMostOnce)
                 }
                 else {
-                    copyScope(visited[cfgNode.previousNodes.first()]!!)
+                    copyScope(visited[cfgNode.previousNodes.first{ !cfgNode.edgeFrom(it).kind.isBack }]!!)
                 }
             }
         }
         visited[cfgNode] = scopeInformation
-        cfgNode.followingNodes.forEach {
-            when (it) {
-                is VariableDeclarationNode -> {
-                    val name = it.fir.name.asString()
-                    scopeInformation.Variables[name] = UsageInformation(Usage.BOTTOM, name, scopeInformation, true)
-                }
-                is QualifiedAccessNode -> {
-                    val name = it.fir.calleeReference.resolved?.name?.asString() ?: throw NullPointerException("callee is null")
-                    var atMostOnce = true
-                    var found = false
-                    var current : ScopeInformation? = scopeInformation
-
-                    if(!current!!.Variables.containsKey(name))
-                    {
-                        current = current.Parent
-                        while (current != null)
-                        {
-                            atMostOnce = atMostOnce && current.executedAtMostOnce
-                            if(current.Variables.containsKey(name))
-                            {
-                                found = true
-                                break
-                            }
-                            current = current.Parent
-                        }
-                    }
-                    if(found) {
-                        if (atMostOnce) {
-                            current!!.Variables[name]!!.UsageAmount = upUsage(current.Variables[name]!!.UsageAmount)
-                        } else {
-                            current!!.Variables[name]!!.UsageAmount = Usage.UNKNOWN
-                        }
-                    }
-                }
-                else -> {}
+        when (cfgNode) {
+            is VariableDeclarationNode -> {
+                val name = cfgNode.fir.name.asString()
+                scopeInformation.Variables[name] = UsageInformation(Usage.BOTTOM, name, true)
             }
+
+            is QualifiedAccessNode -> {
+                val name =
+                    cfgNode.fir.calleeReference.resolved?.name?.asString() ?: throw NullPointerException("callee is null")
+                var atMostOnce = true
+                var found = false
+                var current: ScopeInformation? = scopeInformation
+
+                if (!current!!.Variables.containsKey(name)) {
+                    current = current.Parent
+                    while (current != null) {
+                        atMostOnce = atMostOnce && current.executedAtMostOnce
+                        if (current.Variables.containsKey(name)) {
+                            found = true
+                            break
+                        }
+                        current = current.Parent
+                    }
+                }
+                if (found) {
+                    if (atMostOnce) {
+                        current!!.Variables[name]!!.UsageAmount = upUsage(current.Variables[name]!!.UsageAmount)
+                    } else {
+                        current!!.Variables[name]!!.UsageAmount = Usage.UNKNOWN
+                    }
+                }
+            }
+            else -> {}
         }
         cfgNode.followingNodes.forEach {
             if (!visited.containsKey(it))
@@ -261,41 +261,56 @@ object DummyNameChecker : FirSimpleFunctionChecker(MppCheckerKind.Common) {
 
     private fun merge2Scopes(infoA :ScopeInformation, infoB: ScopeInformation) : ScopeInformation
     {
-        val parent : ScopeInformation?
-        if(infoA.Parent == null || infoB.Parent == null)
-        {
-            parent = null
-        }
-        else
-        {
-            parent = merge2Scopes(infoA.Parent, infoB.Parent)
+        val parent = if(infoA.Parent == null || infoB.Parent == null) {
+            null
+        } else {
+            merge2Scopes(infoA.Parent, infoB.Parent)
         }
         val ret = ScopeInformation(infoA.executedAtMostOnce && infoB.executedAtMostOnce, parent)
         infoA.Variables.forEach{
-            ret.Variables[it.key] = it.value
+            ret.Variables[it.key] = copyUsageInformation(it.value)
         }
         infoB.Variables.forEach{
+            val usage = copyUsageInformation(it.value)
             if(!ret.Variables.containsKey(it.key))
-                ret.Variables[it.key] = it.value
+                ret.Variables[it.key] = usage
             else {
-
+                ret.Variables[it.key] = mergeUsage(ret.Variables[it.key]!!, usage)
             }
         }
         return ret
+    }
+
+    private fun mergeUsage(usageA: UsageInformation, usageB: UsageInformation, parent : UsageInformation? = null) : UsageInformation {
+        val mergedUsage = mergeUsage(usageA.UsageAmount, usageB.UsageAmount)
+        val result = UsageInformation(mergedUsage, usageA.name, usageA.topScope, parent)
+        usageA.Variables.forEach{
+            result.Variables[it.key] = copyUsageInformation(it.value)
+        }
+        usageB.Variables.forEach{
+            val copy = copyUsageInformation(it.value)
+            if(result.Variables.containsKey(it.key)) {
+                result.Variables[it.key] = mergeUsage(copy, it.value, result)
+            }
+            else {
+                result.Variables[it.key] = copy
+            }
+        }
+        return result
     }
 
     private fun copyScope(scopeInformation: ScopeInformation) : ScopeInformation
     {
         val parentScope = if (scopeInformation.Parent != null) copyScope(scopeInformation.Parent) else null
         val ret = ScopeInformation(scopeInformation.executedAtMostOnce, parentScope)
-        scopeInformation.Variables.forEach{ ret.Variables[it.key] = copyUsageInformation(it.value, ret) }
+        scopeInformation.Variables.forEach{ ret.Variables[it.key] = copyUsageInformation(it.value) }
         return ret
     }
 
-    private fun copyUsageInformation(usageInformation: UsageInformation, parentScope : ScopeInformation) : UsageInformation {
+    private fun copyUsageInformation(usageInformation: UsageInformation) : UsageInformation {
         if (usageInformation.Parent == null)
-            return UsageInformation(usageInformation.UsageAmount, usageInformation.name, parentScope, usageInformation.topScope)
-        return UsageInformation(usageInformation.UsageAmount, usageInformation.name, parentScope, usageInformation.topScope, copyUsageInformation(usageInformation.Parent, parentScope))
+            return UsageInformation(usageInformation.UsageAmount, usageInformation.name, usageInformation.topScope)
+        return UsageInformation(usageInformation.UsageAmount, usageInformation.name, usageInformation.topScope, copyUsageInformation(usageInformation.Parent))
     }
 
     // pre-condition: node is not part of visited
@@ -372,7 +387,7 @@ object DummyNameChecker : FirSimpleFunctionChecker(MppCheckerKind.Common) {
                 if (node.ScopeInformation.Variables.containsKey(name))
                     throw Exception("$name already exists in scope")
                 node.ScopeInformation.Variables[name] =
-                    UsageInformation(Usage.BOTTOM, name, node.ScopeInformation, true)
+                    UsageInformation(Usage.BOTTOM, name,true)
             }
             is QualifiedAccessNode -> {
                 var currentScope : ScopeInformation = node.ScopeInformation
@@ -473,7 +488,7 @@ object DummyNameChecker : FirSimpleFunctionChecker(MppCheckerKind.Common) {
                 }
                 else
                 {
-                    node.ScopeInformation.Variables[name] = UsageInformation(Usage.BOTTOM, name, node.ScopeInformation, true)
+                    node.ScopeInformation.Variables[name] = UsageInformation(Usage.BOTTOM, name, true)
                 }
             }
             is QualifiedAccessNode ->
@@ -658,7 +673,7 @@ class ScopeInformation(val executedAtMostOnce: Boolean, val Parent : ScopeInform
     }
 }
 
-class UsageInformation (var UsageAmount : Usage, val name : String, val Scope : ScopeInformation, val topScope : Boolean, val Parent : UsageInformation? = null)
+class UsageInformation (var UsageAmount : Usage, val name : String, val topScope : Boolean, val Parent : UsageInformation? = null)
 {
     val Variables : MutableMap<String, UsageInformation> = mutableMapOf()
 }
