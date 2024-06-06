@@ -40,7 +40,13 @@ fun test() {
 fun dummy3()
 {
     val x = 5
-    x.inc()
+    if (true) {
+        val y = x + 5
+        val z = x + 3
+    }
+    else {
+        
+    }
 }
 
 import java.math.BigInteger
