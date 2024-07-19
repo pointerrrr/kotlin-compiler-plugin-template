@@ -10,6 +10,7 @@ import org.jetbrains.kotlin.test.model.TestModule
 import org.jetbrains.kotlin.test.services.EnvironmentConfigurator
 import org.jetbrains.kotlin.test.services.TestServices
 import org.demiurg906.kotlin.plugin.SimplePluginRegistrar
+import org.demiurg906.kotlin.plugin.fir.DummyNameChecker
 import org.demiurg906.kotlin.plugin.ir.SimpleIrGenerationExtension
 
 class ExtensionRegistrarConfigurator(testServices: TestServices) : EnvironmentConfigurator(testServices) {
@@ -19,6 +20,7 @@ class ExtensionRegistrarConfigurator(testServices: TestServices) : EnvironmentCo
     ) {
         FirExtensionRegistrarAdapter.registerExtension(SimplePluginRegistrar())
         IrGenerationExtension.registerExtension(SimpleIrGenerationExtension())
+        IrGenerationExtension.registerExtension(DummyNameChecker)
         FirExtensionRegistrarAdapter.registerExtension(FirPluginPrototypeExtensionRegistrar())
     }
 }

@@ -14,7 +14,7 @@ import org.jetbrains.kotlin.fir.extensions.FirExtensionRegistrarAdapter
 
 class SimplePluginRegistrar : FirExtensionRegistrar() {
     override fun ExtensionRegistrarContext.configurePlugin() {
-        +::SimpleClassGenerator
+        //+::SimpleClassGenerator
     }
 }
 
@@ -38,5 +38,6 @@ class FirPluginPrototypeComponentRegistrar : CompilerPluginRegistrar() {
 
     override fun ExtensionStorage.registerExtensions(configuration: CompilerConfiguration) {
         FirExtensionRegistrarAdapter.registerExtension(FirPluginPrototypeExtensionRegistrar())
+
     }
 }

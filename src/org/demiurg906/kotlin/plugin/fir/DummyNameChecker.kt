@@ -1,6 +1,10 @@
 package org.demiurg906.kotlin.plugin.fir
 
 import com.intellij.psi.PsiElement
+import org.demiurg906.kotlin.plugin.ir.SimpleIrBodyGenerator
+import org.jetbrains.kotlin.KtSourceElement
+import org.jetbrains.kotlin.backend.common.extensions.IrGenerationExtension
+import org.jetbrains.kotlin.backend.common.extensions.IrPluginContext
 import org.jetbrains.kotlin.diagnostics.*
 import org.jetbrains.kotlin.fir.analysis.checkers.MppCheckerKind
 import org.jetbrains.kotlin.fir.analysis.checkers.context.CheckerContext
@@ -8,14 +12,36 @@ import org.jetbrains.kotlin.fir.analysis.checkers.declaration.FirSimpleFunctionC
 import org.jetbrains.kotlin.fir.declarations.FirSimpleFunction
 import org.jetbrains.kotlin.diagnostics.rendering.BaseDiagnosticRendererFactory
 import org.jetbrains.kotlin.diagnostics.rendering.RootDiagnosticRendererFactory
+import org.jetbrains.kotlin.fir.FirElement
+import org.jetbrains.kotlin.fir.FirSession
+import org.jetbrains.kotlin.fir.analysis.checkers.getContainingClassSymbol
+import org.jetbrains.kotlin.fir.analysis.checkers.getContainingSymbol
 import org.jetbrains.kotlin.fir.analysis.diagnostics.FirDiagnosticRenderers
+import org.jetbrains.kotlin.fir.expressions.*
 import org.jetbrains.kotlin.fir.references.resolved
 import org.jetbrains.kotlin.fir.resolve.dfa.cfg.*
 import org.jetbrains.kotlin.fir.resolve.dfa.controlFlowGraph
+import org.jetbrains.kotlin.fir.resolve.transformers.body.resolve.expectedConeType
 import org.jetbrains.kotlin.fir.symbols.impl.FirFunctionSymbol
+import org.jetbrains.kotlin.fir.visitors.FirTransformer
+import org.jetbrains.kotlin.fir.visitors.FirVisitor
+import org.jetbrains.kotlin.ir.declarations.IrModuleFragment
+import org.jetbrains.kotlin.ir.util.dumpKotlinLike
+import org.jetbrains.kotlin.ir.visitors.acceptChildrenVoid
 import org.jetbrains.kotlin.name.Name
+import org.jetbrains.kotlin.types.ConstantValueKind
 import java.io.File
 import kotlin.jvm.internal.Ref.IntRef
+import org.jetbrains.kotlin.fir.expressions.builder.*
+import org.jetbrains.kotlin.fir.expressions.impl.FirPropertyAccessExpressionImpl
+import org.jetbrains.kotlin.fir.references.FirResolvedCallableReference
+import org.jetbrains.kotlin.fir.references.builder.buildResolvedCallableReference
+import org.jetbrains.kotlin.fir.references.symbol
+import org.jetbrains.kotlin.fir.symbols.FirBasedSymbol
+import org.jetbrains.kotlin.fir.symbols.impl.FirClassSymbol
+import org.jetbrains.kotlin.fir.symbols.impl.FirPropertySymbol
+import org.jetbrains.kotlin.fir.types.ConeKotlinType
+import org.jetbrains.kotlin.fir.visitors.FirVisitorVoid
 
 object PluginErrors {
     val FUNCTION_WITH_DUMMY_NAME by warning1<PsiElement, FirFunctionSymbol<*>>(SourceElementPositioningStrategies.DECLARATION_NAME)
@@ -31,18 +57,54 @@ object PluginRenderer: BaseDiagnosticRendererFactory() {
     }
 }
 
-object DummyNameChecker : FirSimpleFunctionChecker(MppCheckerKind.Common) {
+/*class FirTest : FirVisitorVoid() {
+    override fun visitPropertyAccessExpression(propertyAccessExpression: FirPropertyAccessExpression) {
+        if(propertyAccessExpression.calleeReference is FirResolvedCallableReference) {
+            if(propertyAccessExpression.calleeReference.symbol is FirPropertySymbol) {
+                (propertyAccessExpression.calleeReference.symbol as FirPropertySymbol).fir
+            }
+        }
+        propertyAccessExpression.replaceCalleeReference()
+        super.visitPropertyAccessExpression(propertyAccessExpression)
+    }
+
+
+
+    override fun transformPropertyAccessExpression(
+        propertyAccessExpression: FirPropertyAccessExpression,
+        data: Boolean
+    ): FirStatement {
+        propertyAccessExpression.replaceCalleeReference()
+
+        return buildPropertyAccessExpression(){
+            source = propertyAccessExpression.source
+            calleeReference =
+        }
+    }
+
+}*/
+
+/*class FirVisitorTest : FirVisitor() {
+
+}*/
+
+object DummyNameChecker : FirSimpleFunctionChecker(MppCheckerKind.Common), IrGenerationExtension {
     override fun check(declaration: FirSimpleFunction, context: CheckerContext, reporter: DiagnosticReporter) {
         val name = declaration.symbol.name.asString()
         //reporter.reportOn(declaration.source, PluginErrors.FUNCTION_WITH_DUMMY_NAME, declaration.symbol, context)
         if (name.contains("dummy")) {
             reporter.reportOn(declaration.source, PluginErrors.FUNCTION_WITH_DUMMY_NAME, declaration.symbol, context)
             val file = File("output.txt")
-            printCFG(declaration.controlFlowGraphReference?.controlFlowGraph, file)
+            printCFG(declaration.controlFlowGraphReference?.controlFlowGraph, file, context.session)
         }
     }
 
-    fun printCFG(cfg : ControlFlowGraph?, file : File)
+    override fun generate(moduleFragment: IrModuleFragment, pluginContext: IrPluginContext) {
+        val blub = moduleFragment.dumpKotlinLike()
+
+    }
+
+    fun printCFG(cfg : ControlFlowGraph?, file : File, session : FirSession)
     {
         if (cfg == null)
             return
@@ -53,7 +115,7 @@ object DummyNameChecker : FirSimpleFunctionChecker(MppCheckerKind.Common) {
         val functionArgScopeInformation = ScopeInformation(true)
         val tree = createTree(cfg.enterNode, 0, mutableMapOf(), IntRef(), functionArgScopeInformation)
         //file.appendText("{${tree.printNode()}}")
-        val wings = boneless(cfg.enterNode)
+        val wings = boneless(cfg.enterNode, session = session)
         file.appendText(printResult(wings))
 
     }
@@ -68,9 +130,45 @@ object DummyNameChecker : FirSimpleFunctionChecker(MppCheckerKind.Common) {
         return result
     }
 
+
+
     // pre-condition: cfgNode is not part of visited and all parent of cfgNode are part of visited
-    private fun boneless(cfgNode : CFGNode<*>, visited: MutableMap<CFGNode<*>, ScopeInformation> = mutableMapOf()) : Map<CFGNode<*>,ScopeInformation>
+    private fun boneless(cfgNode : CFGNode<*>, visited: MutableMap<CFGNode<*>, ScopeInformation> = mutableMapOf(), session: FirSession) : Map<CFGNode<*>,ScopeInformation>
     {
+        when (cfgNode) {
+            is FunctionCallNode -> {
+                val calVar = cfgNode.fir.argumentList.arguments.firstOrNull() as? FirPropertyAccessExpression
+                if (calVar == null)
+                    TODO()
+                val calleeReference = calVar.calleeReference
+                if (calleeReference is FirResolvedCallableReference) {
+
+                    val symbol = calVar.calleeReference.symbol
+                    if(symbol is FirPropertySymbol) {
+                        val classSymbol = symbol.getContainingClassSymbol(session)
+                        if (classSymbol is FirClassSymbol)
+                        {
+                            val theOne = classSymbol.declarationSymbols.first() as FirPropertySymbol
+
+                            val result = buildResolvedCallableReference {
+                                source  = calleeReference.source
+                                name = theOne.name
+                                resolvedSymbol = theOne
+                                inferredTypeArguments.addAll(calleeReference.inferredTypeArguments)
+                                mappedArguments = calleeReference.mappedArguments
+                            }
+                            calVar.replaceCalleeReference(result)
+                        }
+
+                    }
+                }
+
+
+                //cfgNode.fir.replaceArgumentList(cfgNode.fir.argumentList.transformArguments(FirTest(), true))
+
+            }
+            else -> {}
+        }
         val executedAtMostOnce = when (cfgNode)
         {
             is EnterNodeMarker -> {
@@ -130,14 +228,14 @@ object DummyNameChecker : FirSimpleFunctionChecker(MppCheckerKind.Common) {
                 val name = cfgNode.fir.name.asString()
                 scopeInformation.Variables[name] = UsageInformation(Usage.BOTTOM, name, true)
             }
-
             is QualifiedAccessNode -> {
                 val name =
-                    cfgNode.fir.calleeReference.resolved?.name?.asString() ?: throw NullPointerException("callee is null")
+                    cfgNode.fir.calleeReference.resolved?.name?.asString() ?:
+                    throw NullPointerException("callee is null")
+                
                 var atMostOnce = true
                 var found = false
                 var current: ScopeInformation? = scopeInformation
-
                 if (!current!!.Variables.containsKey(name)) {
                     current = current.Parent
                     while (current != null) {
@@ -162,7 +260,7 @@ object DummyNameChecker : FirSimpleFunctionChecker(MppCheckerKind.Common) {
         cfgNode.followingNodes.forEach {
             if (!visited.containsKey(it))
             if (it.previousNodes.all{ prev -> visited.containsKey(prev) || it.edgeFrom(prev).kind.isBack})
-                boneless(it, visited)
+                boneless(it, visited, session)
         }
         return visited
     }

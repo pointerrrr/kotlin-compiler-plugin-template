@@ -25,29 +25,30 @@ fun test() {
     }
 }*/
 
-/*fun dummy2()
+fun dummy2() {
+    testFun(false)
+}
+
+fun testFun(arg : Mutate) {
+
+}
+
+enum class Mutate {YES, NO}
+
+/*fun dummy3()
 {
-    if (true)
+    val x = 5
+    var q : Any  = blobzor(5)
+
+    when (val b = q)
     {
-        val x = 5
-    }
-    else
-    {
-        val y = 5
+        is blobzor -> {
+            val z = b.x
+        }
     }
 }*/
 
-fun dummy3()
-{
-    val x = 5
-    if (true) {
-        val y = x + 5
-        val z = x + 3
-    }
-    else {
-        
-    }
-}
+class blobzor(val x : Int)
 
 import java.math.BigInteger
 
