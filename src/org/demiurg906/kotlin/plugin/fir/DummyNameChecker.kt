@@ -226,6 +226,8 @@ object DummyNameChecker : FirSimpleFunctionChecker(MppCheckerKind.Common), IrGen
         when (cfgNode) {
             is VariableDeclarationNode -> {
                 val name = cfgNode.fir.name.asString()
+                if(scopeInformation.Variables.containsKey(name))
+                    throw Exception("$name already exists within scope")
                 scopeInformation.Variables[name] = UsageInformation(Usage.BOTTOM, name, true)
             }
             is QualifiedAccessNode -> {
