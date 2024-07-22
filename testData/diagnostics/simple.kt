@@ -31,7 +31,7 @@ fun dummy2() {
 }
 
 fun testFun(arg : Mutate) {
-    if(arg == Mutate.Yes)
+    if(arg == Mutate.YES)
     {
         println("testjemoeder")
     }
