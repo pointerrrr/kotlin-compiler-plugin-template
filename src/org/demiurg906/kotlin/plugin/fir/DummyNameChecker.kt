@@ -35,10 +35,13 @@ import kotlin.jvm.internal.Ref.IntRef
 import org.jetbrains.kotlin.fir.expressions.builder.*
 import org.jetbrains.kotlin.fir.expressions.impl.FirPropertyAccessExpressionImpl
 import org.jetbrains.kotlin.fir.references.FirResolvedCallableReference
+import org.jetbrains.kotlin.fir.references.FirResolvedNamedReference
 import org.jetbrains.kotlin.fir.references.builder.buildResolvedCallableReference
+import org.jetbrains.kotlin.fir.references.builder.buildResolvedNamedReference
 import org.jetbrains.kotlin.fir.references.symbol
 import org.jetbrains.kotlin.fir.symbols.FirBasedSymbol
 import org.jetbrains.kotlin.fir.symbols.impl.FirClassSymbol
+import org.jetbrains.kotlin.fir.symbols.impl.FirEnumEntrySymbol
 import org.jetbrains.kotlin.fir.symbols.impl.FirPropertySymbol
 import org.jetbrains.kotlin.fir.types.ConeKotlinType
 import org.jetbrains.kotlin.fir.visitors.FirVisitorVoid
@@ -137,35 +140,41 @@ object DummyNameChecker : FirSimpleFunctionChecker(MppCheckerKind.Common), IrGen
     {
         when (cfgNode) {
             is FunctionCallNode -> {
-                val calVar = cfgNode.fir.argumentList.arguments.firstOrNull() as? FirPropertyAccessExpression
-                if (calVar == null)
-                    TODO()
-                val calleeReference = calVar.calleeReference
-                if (calleeReference is FirResolvedCallableReference) {
+                val calVar1 = cfgNode.fir.argumentList.arguments.firstOrNull()
+                val calVar = calVar1 as? FirPropertyAccessExpression
+                if (calVar != null) {
+                    val calleeReference = calVar.calleeReference
+                    //if (calleeReference is FirResolvedCallableReference) {
+                    if (calleeReference is FirResolvedNamedReference) {
 
-                    val symbol = calVar.calleeReference.symbol
-                    if(symbol is FirPropertySymbol) {
-                        val classSymbol = symbol.getContainingClassSymbol(session)
-                        if (classSymbol is FirClassSymbol)
-                        {
-                            val theOne = classSymbol.declarationSymbols.first() as FirPropertySymbol
+                        val symbol = calVar.calleeReference.symbol
+                        //if (symbol is FirPropertySymbol) {
+                        if (symbol is FirEnumEntrySymbol) {
+                            val classSymbol = symbol.getContainingClassSymbol(session)
+                            if (classSymbol is FirClassSymbol) {
+                                val theOne = classSymbol.declarationSymbols[1] as FirEnumEntrySymbol
 
-                            val result = buildResolvedCallableReference {
-                                source  = calleeReference.source
-                                name = theOne.name
-                                resolvedSymbol = theOne
-                                inferredTypeArguments.addAll(calleeReference.inferredTypeArguments)
-                                mappedArguments = calleeReference.mappedArguments
+                                /*val result = buildResolvedCallableReference {
+                                    source = calleeReference.source
+                                    name = theOne.name
+                                    resolvedSymbol = theOne
+                                    inferredTypeArguments.addAll(calleeReference.inferredTypeArguments)
+                                    mappedArguments = calleeReference.mappedArguments
+                                }*/
+                                val result = buildResolvedNamedReference {
+                                    source = calleeReference.source
+                                    name = theOne.name
+                                    resolvedSymbol = theOne
+                                }
+                                calVar.replaceCalleeReference(result)
                             }
-                            calVar.replaceCalleeReference(result)
-                        }
 
+                        }
                     }
                 }
 
-
                 //cfgNode.fir.replaceArgumentList(cfgNode.fir.argumentList.transformArguments(FirTest(), true))
-
+                val a = true
             }
             else -> {}
         }

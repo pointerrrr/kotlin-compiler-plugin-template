@@ -1,6 +1,7 @@
 package foo.bar
 
 import org.itmo.my.pretty.plugin.SomeAnnotation
+import kotlin.io
 
 @SomeAnnotation
 fun test() {
@@ -26,11 +27,14 @@ fun test() {
 }*/
 
 fun dummy2() {
-    testFun(false)
+    testFun(Mutate.NO)
 }
 
 fun testFun(arg : Mutate) {
-
+    if(arg == Mutate.Yes)
+    {
+        println("testjemoeder")
+    }
 }
 
 enum class Mutate {YES, NO}

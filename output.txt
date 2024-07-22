@@ -1,1 +1,46 @@
 dummy2
+Enter function dummy2
+true
+
+Enter block
+true
+sub-scope:
+true
+
+Function call arguments enter
+true
+sub-scope:
+true
+sub-scope:
+true
+
+Access qualifier foo/bar/Mutate
+true
+sub-scope:
+true
+sub-scope:
+true
+
+Access variable R|foo/bar/Mutate.YES|
+true
+sub-scope:
+true
+sub-scope:
+true
+
+Function call arguments exit
+true
+sub-scope:
+true
+
+Function call: R|foo/bar/testFun|(...)
+true
+sub-scope:
+true
+
+Exit block
+true
+
+Exit function dummy2
+true
+
