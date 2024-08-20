@@ -11,6 +11,7 @@ import org.jetbrains.kotlin.test.services.EnvironmentConfigurator
 import org.jetbrains.kotlin.test.services.TestServices
 import org.demiurg906.kotlin.plugin.SimplePluginRegistrar
 import org.demiurg906.kotlin.plugin.ir.SimpleIrGenerationExtension
+import org.jetbrains.kotlin.backend.common.extensions.IrIntrinsicExtension
 
 class ExtensionRegistrarConfigurator(testServices: TestServices) : EnvironmentConfigurator(testServices) {
     override fun CompilerPluginRegistrar.ExtensionStorage.registerCompilerExtensions(

@@ -9,9 +9,11 @@ import org.jetbrains.kotlin.fir.declarations.FirSimpleFunction
 import org.jetbrains.kotlin.diagnostics.rendering.BaseDiagnosticRendererFactory
 import org.jetbrains.kotlin.diagnostics.rendering.RootDiagnosticRendererFactory
 import org.jetbrains.kotlin.fir.analysis.diagnostics.FirDiagnosticRenderers
+import org.jetbrains.kotlin.fir.lightTree.fir.DestructuringEntry.Companion.name
 import org.jetbrains.kotlin.fir.references.resolved
+import org.jetbrains.kotlin.fir.references.toResolvedVariableSymbol
+import org.jetbrains.kotlin.fir.resolve.dfa.*
 import org.jetbrains.kotlin.fir.resolve.dfa.cfg.*
-import org.jetbrains.kotlin.fir.resolve.dfa.controlFlowGraph
 import org.jetbrains.kotlin.fir.symbols.impl.FirFunctionSymbol
 import org.jetbrains.kotlin.name.Name
 import java.io.File
@@ -38,27 +40,28 @@ object DummyNameChecker : FirSimpleFunctionChecker(MppCheckerKind.Common) {
         if (name.contains("dummy")) {
             reporter.reportOn(declaration.source, PluginErrors.FUNCTION_WITH_DUMMY_NAME, declaration.symbol, context)
             val file = File("output.txt")
-            printCFG(declaration.controlFlowGraphReference?.controlFlowGraph, file)
+            printCFG(declaration.controlFlowGraphReference?.controlFlowGraph,
+                declaration.controlFlowGraphReference?.dataFlowInfo?.variableStorage,  file)
+            declaration.controlFlowGraphReference?.dataFlowInfo
         }
     }
 
-    fun printCFG(cfg : ControlFlowGraph?, file : File)
+    fun printCFG(cfg : ControlFlowGraph?, variableStorage : VariableStorage?, file : File)
     {
-        if (cfg == null)
+        if (cfg == null || variableStorage == null)
             return
         file.writeText(cfg.name + "\n")
         val variableUsage = mutableMapOf<Name, Usage>()
         //printNode(cfg.enterNode, file, variableUsage, mutableSetOf())
         //file.appendText(variableUsage.toString())
         val functionArgScopeInformation = ScopeInformation(true)
-        val tree = createTree(cfg.enterNode, 0, mutableMapOf(), IntRef(), functionArgScopeInformation)
+        //val tree = createTree(cfg.enterNode, 0, mutableMapOf(), IntRef(), functionArgScopeInformation)
         //file.appendText("{${tree.printNode()}}")
-        val wings = boneless(cfg.enterNode)
+        val wings = boneless(cfg.enterNode, variableStorage)
         file.appendText(printResult(wings))
-
     }
 
-    fun printResult(info : Map<CFGNode<*>, ScopeInformation>, visited : MutableSet<CFGNode<*>> = mutableSetOf()) : String
+    private fun printResult(info : Map<CFGNode<*>, ScopeInformation>, visited : MutableSet<CFGNode<*>> = mutableSetOf()) : String
     {
         var result = ""
         info.forEach{
@@ -69,8 +72,9 @@ object DummyNameChecker : FirSimpleFunctionChecker(MppCheckerKind.Common) {
     }
 
     // pre-condition: cfgNode is not part of visited and all parent of cfgNode are part of visited
-    private fun boneless(cfgNode : CFGNode<*>, visited: MutableMap<CFGNode<*>, ScopeInformation> = mutableMapOf()) : Map<CFGNode<*>,ScopeInformation>
+    private fun boneless(cfgNode : CFGNode<*>, variableStorage: VariableStorage, visited: MutableMap<CFGNode<*>, ScopeInformation> = mutableMapOf()) : Map<CFGNode<*>,ScopeInformation>
     {
+        val parentCount = cfgNode.previousNodes.count{ !cfgNode.edgeFrom(it).kind.isBack  }
         val executedAtMostOnce = when (cfgNode)
         {
             is EnterNodeMarker -> {
@@ -81,10 +85,13 @@ object DummyNameChecker : FirSimpleFunctionChecker(MppCheckerKind.Common) {
                 parent?.executedAtMostOnce ?: true
             }
             else -> {
+                if (cfgNode.previousNodes.any{cfgNode.edgeFrom(it).kind.isBack}) {
+                    throw Exception("non-enter node with back-edge")
+                }
                 visited[cfgNode.previousNodes.first{ !cfgNode.edgeFrom(it).kind.isBack }]!!.executedAtMostOnce
+
             }
         }
-        val parentCount = cfgNode.previousNodes.count{ !cfgNode.edgeFrom(it).kind.isBack  }
         val scopeInformation = when (cfgNode)
         {
             is EnterNodeMarker -> {
@@ -124,27 +131,33 @@ object DummyNameChecker : FirSimpleFunctionChecker(MppCheckerKind.Common) {
                 }
             }
         }
-        visited[cfgNode] = scopeInformation
         when (cfgNode) {
             is VariableDeclarationNode -> {
-                val name = cfgNode.fir.name.asString()
-                if(scopeInformation.Variables.containsKey(name))
-                    throw Exception("$name already exists within scope")
-                scopeInformation.Variables[name] = UsageInformation(Usage.BOTTOM, name, true)
+                val variable = variableStorage.get(cfgNode.fir) {v, _ -> cfgNode.flow.unwrapVariable(v)}
+                if(scopeInformation.Variables.containsKey(variable))
+                    throw Exception("${variable.toString()} already exists within scope")
+                if(variable == null)
+                    throw Exception("variable does not exist")
+                scopeInformation.Variables[variable] = UsageInformation(Usage.BOTTOM, cfgNode.fir.name.asString(), true)
             }
 
             is QualifiedAccessNode -> {
+                val variable = variableStorage.get(cfgNode.fir) {v, _ -> cfgNode.flow.unwrapVariable(v)}
+                if(scopeInformation.Variables.containsKey(variable))
+                    throw Exception("${variable.toString()} already exists within scope")
+                if(variable == null)
+                    throw Exception("variable does not exist")
                 val name =
                     cfgNode.fir.calleeReference.resolved?.name?.asString() ?: throw NullPointerException("callee is null")
                 var atMostOnce = true
                 var found = false
                 var current: ScopeInformation? = scopeInformation
 
-                if (!current!!.Variables.containsKey(name)) {
+                if (!current!!.Variables.containsKey(variable)) {
                     current = current.Parent
                     while (current != null) {
                         atMostOnce = atMostOnce && current.executedAtMostOnce
-                        if (current.Variables.containsKey(name)) {
+                        if (current.Variables.containsKey(variable)) {
                             found = true
                             break
                         }
@@ -153,18 +166,19 @@ object DummyNameChecker : FirSimpleFunctionChecker(MppCheckerKind.Common) {
                 }
                 if (found) {
                     if (atMostOnce) {
-                        current!!.Variables[name]!!.UsageAmount = upUsage(current.Variables[name]!!.UsageAmount)
+                        current!!.Variables[variable]!!.UsageAmount = upUsage(current.Variables[variable]!!.UsageAmount)
                     } else {
-                        current!!.Variables[name]!!.UsageAmount = Usage.UNKNOWN
+                        current!!.Variables[variable]!!.UsageAmount = Usage.UNKNOWN
                     }
                 }
             }
             else -> {}
         }
+        visited[cfgNode] = scopeInformation
         cfgNode.followingNodes.forEach {
             if (!visited.containsKey(it))
             if (it.previousNodes.all{ prev -> visited.containsKey(prev) || it.edgeFrom(prev).kind.isBack})
-                boneless(it, visited)
+                boneless(it, variableStorage, visited)
         }
         return visited
     }
@@ -375,7 +389,7 @@ object DummyNameChecker : FirSimpleFunctionChecker(MppCheckerKind.Common) {
     }
 
     // pre-condition: node.CFGNode is not part of visited
-    private fun calculateUsage(node : Node, visited: MutableSet<CFGNode<*>> = mutableSetOf()) : Node
+    /*private fun calculateUsage(node : Node, visited: MutableSet<CFGNode<*>> = mutableSetOf()) : Node
     {
         val cfgNode = node.CFGNode
         val forwardParents = node.Parents.filterValues { it == EdgeKind.Forward }
@@ -533,7 +547,7 @@ object DummyNameChecker : FirSimpleFunctionChecker(MppCheckerKind.Common) {
         }
 
         return
-    }
+    }*/
 
     private fun upUsage(usage : Usage) : Usage
     {
@@ -661,12 +675,12 @@ enum class Usage
 
 class ScopeInformation(val executedAtMostOnce: Boolean, val Parent : ScopeInformation? = null)
 {
-    val Variables : MutableMap<String,UsageInformation> = mutableMapOf()
+    val Variables : MutableMap<DataFlowVariable,UsageInformation> = mutableMapOf()
 
     fun print() : String{
         var result = executedAtMostOnce.toString() + "\n"
         Variables.forEach{
-            result += it.key + " " + it.value.UsageAmount + "\n"
+            result += (it.key as RealVariable).identifier.toString() + " " + it.value.UsageAmount + "\n"
         }
         if (Parent != null) {
             result = Parent.print() + "sub-scope:" + "\n" + result
@@ -677,5 +691,5 @@ class ScopeInformation(val executedAtMostOnce: Boolean, val Parent : ScopeInform
 
 class UsageInformation (var UsageAmount : Usage, val name : String, val topScope : Boolean, val Parent : UsageInformation? = null)
 {
-    val Variables : MutableMap<String, UsageInformation> = mutableMapOf()
+    val Variables : MutableMap<DataFlowVariable, UsageInformation> = mutableMapOf()
 }

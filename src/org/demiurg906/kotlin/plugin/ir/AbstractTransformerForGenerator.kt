@@ -7,6 +7,7 @@ package org.demiurg906.kotlin.plugin.ir
 
 import org.jetbrains.kotlin.GeneratedDeclarationKey
 import org.jetbrains.kotlin.backend.common.extensions.IrPluginContext
+import org.jetbrains.kotlin.backend.common.serialization.kind
 import org.jetbrains.kotlin.ir.IrElement
 import org.jetbrains.kotlin.ir.declarations.*
 import org.jetbrains.kotlin.ir.expressions.IrBody
@@ -32,8 +33,13 @@ abstract class AbstractTransformerForGenerator(protected val context: IrPluginCo
             is IrDeclaration,
             is IrFile,
             is IrModuleFragment -> element.acceptChildrenVoid(this)
+            //is IrVariable -> element.name.
             else -> {}
         }
+    }
+
+    final override fun visitFunction(declaration: IrFunction) {
+        super.visitFunction(declaration)
     }
 
     final override fun visitSimpleFunction(declaration: IrSimpleFunction) {

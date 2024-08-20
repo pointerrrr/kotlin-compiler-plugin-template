@@ -16,13 +16,13 @@ Variable declaration: lval x: R|kotlin/Int|
 true
 sub-scope:
 true
-x BOTTOM
+[<local>/x, dispatchReceiver = null, extensionReceiver = null] BOTTOM
 
 Enter when
 true
 sub-scope:
 true
-x BOTTOM
+[<local>/x, dispatchReceiver = null, extensionReceiver = null] BOTTOM
 sub-scope:
 true
 
@@ -30,7 +30,7 @@ Enter when branch condition
 true
 sub-scope:
 true
-x BOTTOM
+[<local>/x, dispatchReceiver = null, extensionReceiver = null] BOTTOM
 sub-scope:
 true
 sub-scope:
@@ -40,7 +40,7 @@ Const: Boolean(true)
 true
 sub-scope:
 true
-x BOTTOM
+[<local>/x, dispatchReceiver = null, extensionReceiver = null] BOTTOM
 sub-scope:
 true
 sub-scope:
@@ -50,7 +50,7 @@ Exit when branch condition
 true
 sub-scope:
 true
-x BOTTOM
+[<local>/x, dispatchReceiver = null, extensionReceiver = null] BOTTOM
 sub-scope:
 true
 
@@ -58,7 +58,7 @@ Enter when branch result
 true
 sub-scope:
 true
-x BOTTOM
+[<local>/x, dispatchReceiver = null, extensionReceiver = null] BOTTOM
 sub-scope:
 true
 
@@ -66,7 +66,7 @@ Enter block
 true
 sub-scope:
 true
-x BOTTOM
+[<local>/x, dispatchReceiver = null, extensionReceiver = null] BOTTOM
 sub-scope:
 true
 sub-scope:
@@ -76,7 +76,7 @@ Function call arguments enter
 true
 sub-scope:
 true
-x BOTTOM
+[<local>/x, dispatchReceiver = null, extensionReceiver = null] BOTTOM
 sub-scope:
 true
 sub-scope:
@@ -88,7 +88,7 @@ Access variable R|<local>/x|
 true
 sub-scope:
 true
-x ONCE
+[<local>/x, dispatchReceiver = null, extensionReceiver = null] ONCE
 sub-scope:
 true
 sub-scope:
@@ -100,7 +100,7 @@ Const: Int(5)
 true
 sub-scope:
 true
-x ONCE
+[<local>/x, dispatchReceiver = null, extensionReceiver = null] ONCE
 sub-scope:
 true
 sub-scope:
@@ -112,7 +112,7 @@ Function call arguments exit
 true
 sub-scope:
 true
-x ONCE
+[<local>/x, dispatchReceiver = null, extensionReceiver = null] ONCE
 sub-scope:
 true
 sub-scope:
@@ -122,7 +122,7 @@ Function call: R|<local>/x|.R|kotlin/Int.plus|(...)
 true
 sub-scope:
 true
-x ONCE
+[<local>/x, dispatchReceiver = null, extensionReceiver = null] ONCE
 sub-scope:
 true
 sub-scope:
@@ -132,23 +132,23 @@ Variable declaration: lval y: R|kotlin/Int|
 true
 sub-scope:
 true
-x ONCE
+[<local>/x, dispatchReceiver = null, extensionReceiver = null] ONCE
 sub-scope:
 true
 sub-scope:
 true
-y BOTTOM
+[<local>/y, dispatchReceiver = null, extensionReceiver = null] BOTTOM
 
 Function call arguments enter
 true
 sub-scope:
 true
-x ONCE
+[<local>/x, dispatchReceiver = null, extensionReceiver = null] ONCE
 sub-scope:
 true
 sub-scope:
 true
-y BOTTOM
+[<local>/y, dispatchReceiver = null, extensionReceiver = null] BOTTOM
 sub-scope:
 true
 
@@ -156,12 +156,12 @@ Access variable R|<local>/x|
 true
 sub-scope:
 true
-x ONCE_OR_MORE
+[<local>/x, dispatchReceiver = null, extensionReceiver = null] ONCE_OR_MORE
 sub-scope:
 true
 sub-scope:
 true
-y BOTTOM
+[<local>/y, dispatchReceiver = null, extensionReceiver = null] BOTTOM
 sub-scope:
 true
 
@@ -169,12 +169,12 @@ Const: Int(3)
 true
 sub-scope:
 true
-x ONCE_OR_MORE
+[<local>/x, dispatchReceiver = null, extensionReceiver = null] ONCE_OR_MORE
 sub-scope:
 true
 sub-scope:
 true
-y BOTTOM
+[<local>/y, dispatchReceiver = null, extensionReceiver = null] BOTTOM
 sub-scope:
 true
 
@@ -182,41 +182,41 @@ Function call arguments exit
 true
 sub-scope:
 true
-x ONCE_OR_MORE
+[<local>/x, dispatchReceiver = null, extensionReceiver = null] ONCE_OR_MORE
 sub-scope:
 true
 sub-scope:
 true
-y BOTTOM
+[<local>/y, dispatchReceiver = null, extensionReceiver = null] BOTTOM
 
 Function call: R|<local>/x|.R|kotlin/Int.plus|(...)
 true
 sub-scope:
 true
-x ONCE_OR_MORE
+[<local>/x, dispatchReceiver = null, extensionReceiver = null] ONCE_OR_MORE
 sub-scope:
 true
 sub-scope:
 true
-y BOTTOM
+[<local>/y, dispatchReceiver = null, extensionReceiver = null] BOTTOM
 
 Variable declaration: lval z: R|kotlin/Int|
 true
 sub-scope:
 true
-x ONCE_OR_MORE
+[<local>/x, dispatchReceiver = null, extensionReceiver = null] ONCE_OR_MORE
 sub-scope:
 true
 sub-scope:
 true
-y BOTTOM
-z BOTTOM
+[<local>/y, dispatchReceiver = null, extensionReceiver = null] BOTTOM
+[<local>/z, dispatchReceiver = null, extensionReceiver = null] BOTTOM
 
 Exit block
 true
 sub-scope:
 true
-x ONCE_OR_MORE
+[<local>/x, dispatchReceiver = null, extensionReceiver = null] ONCE_OR_MORE
 sub-scope:
 true
 
@@ -224,7 +224,7 @@ Exit when branch result
 true
 sub-scope:
 true
-x ONCE_OR_MORE
+[<local>/x, dispatchReceiver = null, extensionReceiver = null] ONCE_OR_MORE
 sub-scope:
 true
 
@@ -232,7 +232,7 @@ Enter when branch condition "else"
 true
 sub-scope:
 true
-x BOTTOM
+[<local>/x, dispatchReceiver = null, extensionReceiver = null] BOTTOM
 sub-scope:
 true
 sub-scope:
@@ -242,7 +242,7 @@ Exit when branch condition
 true
 sub-scope:
 true
-x BOTTOM
+[<local>/x, dispatchReceiver = null, extensionReceiver = null] BOTTOM
 sub-scope:
 true
 
@@ -250,7 +250,7 @@ Enter when branch result
 true
 sub-scope:
 true
-x BOTTOM
+[<local>/x, dispatchReceiver = null, extensionReceiver = null] BOTTOM
 sub-scope:
 true
 
@@ -258,7 +258,7 @@ Enter block
 true
 sub-scope:
 true
-x BOTTOM
+[<local>/x, dispatchReceiver = null, extensionReceiver = null] BOTTOM
 sub-scope:
 true
 sub-scope:
@@ -268,7 +268,7 @@ Exit block
 true
 sub-scope:
 true
-x BOTTOM
+[<local>/x, dispatchReceiver = null, extensionReceiver = null] BOTTOM
 sub-scope:
 true
 
@@ -276,7 +276,7 @@ Exit when branch result
 true
 sub-scope:
 true
-x BOTTOM
+[<local>/x, dispatchReceiver = null, extensionReceiver = null] BOTTOM
 sub-scope:
 true
 
@@ -284,7 +284,7 @@ Exit when
 true
 sub-scope:
 true
-x UNKNOWN
+[<local>/x, dispatchReceiver = null, extensionReceiver = null] UNKNOWN
 sub-scope:
 true
 
@@ -292,7 +292,7 @@ Exit block
 true
 sub-scope:
 true
-x UNKNOWN
+[<local>/x, dispatchReceiver = null, extensionReceiver = null] UNKNOWN
 
 Exit function dummy3
 true
