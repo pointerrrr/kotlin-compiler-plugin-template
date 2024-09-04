@@ -1,8 +1,6 @@
 package org.demiurg906.kotlin.plugin.fir
 
 import com.intellij.psi.PsiElement
-import org.demiurg906.kotlin.plugin.ir.SimpleIrBodyGenerator
-import org.jetbrains.kotlin.KtSourceElement
 import org.jetbrains.kotlin.backend.common.extensions.IrGenerationExtension
 import org.jetbrains.kotlin.backend.common.extensions.IrPluginContext
 import org.jetbrains.kotlin.diagnostics.*
@@ -12,39 +10,25 @@ import org.jetbrains.kotlin.fir.analysis.checkers.declaration.FirSimpleFunctionC
 import org.jetbrains.kotlin.fir.declarations.FirSimpleFunction
 import org.jetbrains.kotlin.diagnostics.rendering.BaseDiagnosticRendererFactory
 import org.jetbrains.kotlin.diagnostics.rendering.RootDiagnosticRendererFactory
-import org.jetbrains.kotlin.fir.FirElement
 import org.jetbrains.kotlin.fir.FirSession
 import org.jetbrains.kotlin.fir.analysis.checkers.getContainingClassSymbol
-import org.jetbrains.kotlin.fir.analysis.checkers.getContainingSymbol
 import org.jetbrains.kotlin.fir.analysis.diagnostics.FirDiagnosticRenderers
 import org.jetbrains.kotlin.fir.expressions.*
+import org.jetbrains.kotlin.fir.expressions.impl.FirPropertyAccessExpressionImpl
 import org.jetbrains.kotlin.fir.references.resolved
 import org.jetbrains.kotlin.fir.resolve.dfa.cfg.*
 import org.jetbrains.kotlin.fir.resolve.dfa.controlFlowGraph
-import org.jetbrains.kotlin.fir.resolve.transformers.body.resolve.expectedConeType
 import org.jetbrains.kotlin.fir.symbols.impl.FirFunctionSymbol
-import org.jetbrains.kotlin.fir.visitors.FirTransformer
-import org.jetbrains.kotlin.fir.visitors.FirVisitor
 import org.jetbrains.kotlin.ir.declarations.IrModuleFragment
 import org.jetbrains.kotlin.ir.util.dumpKotlinLike
-import org.jetbrains.kotlin.ir.visitors.acceptChildrenVoid
 import org.jetbrains.kotlin.name.Name
-import org.jetbrains.kotlin.types.ConstantValueKind
 import java.io.File
 import kotlin.jvm.internal.Ref.IntRef
-import org.jetbrains.kotlin.fir.expressions.builder.*
-import org.jetbrains.kotlin.fir.expressions.impl.FirPropertyAccessExpressionImpl
-import org.jetbrains.kotlin.fir.references.FirResolvedCallableReference
 import org.jetbrains.kotlin.fir.references.FirResolvedNamedReference
-import org.jetbrains.kotlin.fir.references.builder.buildResolvedCallableReference
 import org.jetbrains.kotlin.fir.references.builder.buildResolvedNamedReference
 import org.jetbrains.kotlin.fir.references.symbol
-import org.jetbrains.kotlin.fir.symbols.FirBasedSymbol
 import org.jetbrains.kotlin.fir.symbols.impl.FirClassSymbol
 import org.jetbrains.kotlin.fir.symbols.impl.FirEnumEntrySymbol
-import org.jetbrains.kotlin.fir.symbols.impl.FirPropertySymbol
-import org.jetbrains.kotlin.fir.types.ConeKotlinType
-import org.jetbrains.kotlin.fir.visitors.FirVisitorVoid
 
 object PluginErrors {
     val FUNCTION_WITH_DUMMY_NAME by warning1<PsiElement, FirFunctionSymbol<*>>(SourceElementPositioningStrategies.DECLARATION_NAME)
@@ -118,8 +102,9 @@ object DummyNameChecker : FirSimpleFunctionChecker(MppCheckerKind.Common), IrGen
         val functionArgScopeInformation = ScopeInformation(true)
         val tree = createTree(cfg.enterNode, 0, mutableMapOf(), IntRef(), functionArgScopeInformation)
         //file.appendText("{${tree.printNode()}}")
-        val wings = boneless(cfg.enterNode, session = session)
-        file.appendText(printResult(wings))
+        val usage = findUsage(cfg.enterNode, session = session)
+        findAndChangeFunctions(cfg.enterNode, usage, session)
+        file.appendText(printResult(usage))
 
     }
 
@@ -133,10 +118,68 @@ object DummyNameChecker : FirSimpleFunctionChecker(MppCheckerKind.Common), IrGen
         return result
     }
 
+    private fun findUsageOfVariable(name : String, scopeInformation: ScopeInformation) : Usage {
+        if(scopeInformation.Variables.containsKey(name))
+            return scopeInformation.Variables[name]!!.UsageAmount
+        if (scopeInformation.Parent == null)
+            throw Exception("variable not found in any scope")
+        return findUsageOfVariable(name, scopeInformation.Parent)
+    }
+
+
+    private fun findAndChangeFunctions(cfgNode : CFGNode<*>, usage: Map<CFGNode<*>, ScopeInformation>, session: FirSession, visited: MutableSet<CFGNode<*>> = mutableSetOf()) {
+        visited.add(cfgNode)
+        when (cfgNode) {
+            is FunctionCallNode -> {
+                if (cfgNode.fir.calleeReference.name.toString() == "mapMutate") {
+                    val arguments = cfgNode.fir.argumentList.arguments
+                    val calVar = cfgNode.fir.extensionReceiver as FirPropertyAccessExpression
+                    val namedReference = calVar.calleeReference as FirResolvedNamedReference
+                    val varName = namedReference.name.toString()
+                    if (!usage.containsKey(cfgNode))
+                        throw Exception("scope does not have usage information")
+                    val usageOfVariable = findUsageOfVariable(varName, usage[cfgNode]!!)
+                    if (usageOfVariable == Usage.ONCE || usageOfVariable == Usage.AT_MOST_ONCE) {
+                        val usageVar = arguments.firstOrNull()
+                        if (usageVar != null) {
+                            val calleeReference = calVar.calleeReference
+                            //if (calleeReference is FirResolvedCallableReference) {
+                            if (calleeReference is FirResolvedNamedReference) {
+
+                                val symbol = calVar.calleeReference.symbol
+                                //if (symbol is FirPropertySymbol) {
+                                if (symbol is FirEnumEntrySymbol) {
+                                    val classSymbol = symbol.getContainingClassSymbol(session)
+                                    if (classSymbol is FirClassSymbol) {
+                                        val theOne = classSymbol.declarationSymbols[1] as FirEnumEntrySymbol
+                                        val result = buildResolvedNamedReference {
+                                            source = calleeReference.source
+                                            name = theOne.name
+                                            resolvedSymbol = theOne
+                                        }
+                                        calVar.replaceCalleeReference(result)
+                                    }
+
+                                }
+                            }
+                        }
+                    }
+
+                }
+            }
+            else -> {}
+        }
+        cfgNode.followingNodes.forEach {
+            if (!visited.contains(it))
+                if (it.previousNodes.all{ prev -> visited.contains(prev) || it.edgeFrom(prev).kind.isBack})
+                    findAndChangeFunctions(it, usage, session, visited)
+        }
+    }
+
 
 
     // pre-condition: cfgNode is not part of visited and all parent of cfgNode are part of visited
-    private fun boneless(cfgNode : CFGNode<*>, visited: MutableMap<CFGNode<*>, ScopeInformation> = mutableMapOf(), session: FirSession) : Map<CFGNode<*>,ScopeInformation>
+    private fun findUsage(cfgNode : CFGNode<*>, visited: MutableMap<CFGNode<*>, ScopeInformation> = mutableMapOf(), session: FirSession) : Map<CFGNode<*>,ScopeInformation>
     {
         when (cfgNode) {
             is FunctionCallNode -> {
@@ -203,7 +246,7 @@ object DummyNameChecker : FirSimpleFunctionChecker(MppCheckerKind.Common), IrGen
                 }
                 else {
                     val parentScope = visited[cfgNode.previousNodes.first{!cfgNode.edgeFrom(it).kind.isBack}]!!
-                    ScopeInformation(executedAtMostOnce, copyScope(parentScope))
+                    ScopeInformation(executedAtMostOnce, parentScope)
                 }
             }
             is ExitNodeMarker -> {
@@ -212,7 +255,7 @@ object DummyNameChecker : FirSimpleFunctionChecker(MppCheckerKind.Common), IrGen
                     if (previousScope?.Parent == null) {
                         ScopeInformation(true)
                     } else {
-                        copyScope(previousScope.Parent)
+                        previousScope.Parent
                     }
                 }
                 else{
@@ -221,13 +264,14 @@ object DummyNameChecker : FirSimpleFunctionChecker(MppCheckerKind.Common), IrGen
             }
             else -> {
                 if(parentCount > 1) {
+                    val parents = cfgNode.previousNodes.map{ cfgNode.edgeFrom(it).kind  }
                     throw Error("Parent count > 1 on non-marker")
                 }
                 if(parentCount == 0) {
                     ScopeInformation(executedAtMostOnce)
                 }
                 else {
-                    copyScope(visited[cfgNode.previousNodes.first{ !cfgNode.edgeFrom(it).kind.isBack }]!!)
+                    visited[cfgNode.previousNodes.first{ !cfgNode.edgeFrom(it).kind.isBack }]!!
                 }
             }
         }
@@ -271,7 +315,7 @@ object DummyNameChecker : FirSimpleFunctionChecker(MppCheckerKind.Common), IrGen
         cfgNode.followingNodes.forEach {
             if (!visited.containsKey(it))
             if (it.previousNodes.all{ prev -> visited.containsKey(prev) || it.edgeFrom(prev).kind.isBack})
-                boneless(it, visited, session)
+                findUsage(it, visited, session)
         }
         return visited
     }
@@ -785,4 +829,35 @@ class ScopeInformation(val executedAtMostOnce: Boolean, val Parent : ScopeInform
 class UsageInformation (var UsageAmount : Usage, val name : String, val topScope : Boolean, val Parent : UsageInformation? = null)
 {
     val Variables : MutableMap<String, UsageInformation> = mutableMapOf()
+}
+
+class lmao()
+{
+    fun dummy2() {
+        val blub = listOf("a", "b", "c")
+        val asdf : List<String> = blub.mapMutate (Mutate.NO, this::identity)
+    }
+
+
+
+    fun <A> identity(ret : A) : A
+    {
+        return ret
+    }
+
+    // invariant: if Mutate.YES ==> B : A
+    fun <A, B> List<A>.mapMutate(shouldMutate: Mutate = Mutate.NO, transform: (A) -> B): List<B> =
+        when {
+            shouldMutate == Mutate.YES && this is MutableList<*> -> {
+                val me: MutableList<A> = this as MutableList<A>
+                val result: MutableList<B> = this as MutableList<B>
+                for (i in indices) {
+                    result[i] = transform(me[i])
+                }
+                this
+            }
+            else -> this.map(transform)
+        }
+
+    enum class Mutate {YES, NO}
 }

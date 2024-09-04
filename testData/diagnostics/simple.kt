@@ -27,15 +27,31 @@ fun test() {
 }*/
 
 fun dummy2() {
-    testFun(Mutate.NO)
+    val blub = listOf("a", "b", "c")
+    val
+    val asdf : List<String> = blub.mapMutate (Mutate.NO, ::identity)
 }
 
-fun testFun(arg : Mutate) {
-    if(arg == Mutate.YES)
-    {
-        println("testjemoeder")
-    }
+
+
+fun <A> identity(ret : A) : A
+{
+    return ret
 }
+
+// invariant: if Mutate.YES ==> B : A
+fun <A, B> List<A>.mapMutate(shouldMutate: Mutate = Mutate.NO, transform: (A) -> B): List<B> =
+    when {
+        shouldMutate == Mutate.YES && this is MutableList<*> -> {
+            val me: MutableList<A> = this as MutableList<A>
+            val result: MutableList<B> = this as MutableList<B>
+            for (i in indices) {
+                result[i] = transform(me[i])
+            }
+            this
+        }
+        else -> this.map(transform)
+    }
 
 enum class Mutate {YES, NO}
 
