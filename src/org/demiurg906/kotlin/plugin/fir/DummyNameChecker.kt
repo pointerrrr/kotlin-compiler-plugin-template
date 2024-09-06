@@ -140,13 +140,13 @@ object DummyNameChecker : FirSimpleFunctionChecker(MppCheckerKind.Common), IrGen
                         throw Exception("scope does not have usage information")
                     val usageOfVariable = findUsageOfVariable(varName, usage[cfgNode]!!)
                     if (usageOfVariable == Usage.ONCE || usageOfVariable == Usage.AT_MOST_ONCE) {
-                        val usageVar = arguments.firstOrNull()
+                        val usageVar = arguments.firstOrNull() as? FirPropertyAccessExpression
                         if (usageVar != null) {
-                            val calleeReference = calVar.calleeReference
+                            val calleeReference = usageVar.calleeReference
                             //if (calleeReference is FirResolvedCallableReference) {
                             if (calleeReference is FirResolvedNamedReference) {
 
-                                val symbol = calVar.calleeReference.symbol
+                                val symbol = usageVar.calleeReference.symbol
                                 //if (symbol is FirPropertySymbol) {
                                 if (symbol is FirEnumEntrySymbol) {
                                     val classSymbol = symbol.getContainingClassSymbol(session)
@@ -157,7 +157,8 @@ object DummyNameChecker : FirSimpleFunctionChecker(MppCheckerKind.Common), IrGen
                                             name = theOne.name
                                             resolvedSymbol = theOne
                                         }
-                                        calVar.replaceCalleeReference(result)
+                                        usageVar.replaceCalleeReference(result)
+                                        val x = 5
                                     }
 
                                 }
@@ -182,7 +183,7 @@ object DummyNameChecker : FirSimpleFunctionChecker(MppCheckerKind.Common), IrGen
     private fun findUsage(cfgNode : CFGNode<*>, visited: MutableMap<CFGNode<*>, ScopeInformation> = mutableMapOf(), session: FirSession) : Map<CFGNode<*>,ScopeInformation>
     {
         when (cfgNode) {
-            is FunctionCallNode -> {
+            /*is FunctionCallNode -> {
                 val calVar1 = cfgNode.fir.argumentList.arguments.firstOrNull()
                 val calVar = calVar1 as? FirPropertyAccessExpression
                 if (calVar != null) {
@@ -218,7 +219,7 @@ object DummyNameChecker : FirSimpleFunctionChecker(MppCheckerKind.Common), IrGen
 
                 //cfgNode.fir.replaceArgumentList(cfgNode.fir.argumentList.transformArguments(FirTest(), true))
                 val a = true
-            }
+            }*/
             else -> {}
         }
         val executedAtMostOnce = when (cfgNode)

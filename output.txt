@@ -1,1 +1,164 @@
 dummy2
+Enter function dummy2
+true
+
+Enter block
+true
+sub-scope:
+true
+blub ONCE
+<no name provided> BOTTOM
+asdf BOTTOM
+
+Function call arguments enter
+true
+sub-scope:
+true
+blub ONCE
+<no name provided> BOTTOM
+asdf BOTTOM
+sub-scope:
+true
+
+Const: String(a)
+true
+sub-scope:
+true
+blub ONCE
+<no name provided> BOTTOM
+asdf BOTTOM
+sub-scope:
+true
+
+Const: String(b)
+true
+sub-scope:
+true
+blub ONCE
+<no name provided> BOTTOM
+asdf BOTTOM
+sub-scope:
+true
+
+Const: String(c)
+true
+sub-scope:
+true
+blub ONCE
+<no name provided> BOTTOM
+asdf BOTTOM
+sub-scope:
+true
+
+Function call arguments exit
+true
+sub-scope:
+true
+blub ONCE
+<no name provided> BOTTOM
+asdf BOTTOM
+
+Function call: R|kotlin/collections/listOf|<R|kotlin/String|>(...)
+true
+sub-scope:
+true
+blub ONCE
+<no name provided> BOTTOM
+asdf BOTTOM
+
+Variable declaration: lval blub: R|kotlin/collections/List<kotlin/String>|
+true
+sub-scope:
+true
+blub ONCE
+<no name provided> BOTTOM
+asdf BOTTOM
+
+Variable declaration: lval <no name provided>: <ERROR TYPE REF: Cannot infer variable type without initializer / getter / delegate>
+true
+sub-scope:
+true
+blub ONCE
+<no name provided> BOTTOM
+asdf BOTTOM
+
+Function call arguments enter
+true
+sub-scope:
+true
+blub ONCE
+<no name provided> BOTTOM
+asdf BOTTOM
+sub-scope:
+true
+
+Access variable R|<local>/blub|
+true
+sub-scope:
+true
+blub ONCE
+<no name provided> BOTTOM
+asdf BOTTOM
+sub-scope:
+true
+
+Access qualifier foo/bar/Mutate
+true
+sub-scope:
+true
+blub ONCE
+<no name provided> BOTTOM
+asdf BOTTOM
+sub-scope:
+true
+
+Access variable R|foo/bar/Mutate.YES|
+true
+sub-scope:
+true
+blub ONCE
+<no name provided> BOTTOM
+asdf BOTTOM
+sub-scope:
+true
+
+Callable reference: ::R|foo/bar/identity<kotlin/String>|
+true
+sub-scope:
+true
+blub ONCE
+<no name provided> BOTTOM
+asdf BOTTOM
+sub-scope:
+true
+
+Function call arguments exit
+true
+sub-scope:
+true
+blub ONCE
+<no name provided> BOTTOM
+asdf BOTTOM
+
+Function call: R|<local>/blub|.R|foo/bar/mapMutate|<R|kotlin/String|, R|kotlin/String|>(...)
+true
+sub-scope:
+true
+blub ONCE
+<no name provided> BOTTOM
+asdf BOTTOM
+
+Variable declaration: lval asdf: R|kotlin/collections/List<kotlin/String>|
+true
+sub-scope:
+true
+blub ONCE
+<no name provided> BOTTOM
+asdf BOTTOM
+
+Exit block
+true
+
+Exit function dummy2
+true
+
