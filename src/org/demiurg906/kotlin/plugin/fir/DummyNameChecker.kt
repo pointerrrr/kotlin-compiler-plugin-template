@@ -25,6 +25,7 @@ import org.jetbrains.kotlin.name.Name
 import java.io.File
 import kotlin.jvm.internal.Ref.IntRef
 import org.jetbrains.kotlin.fir.references.FirResolvedNamedReference
+import org.jetbrains.kotlin.fir.references.FirThisReference
 import org.jetbrains.kotlin.fir.references.builder.buildResolvedNamedReference
 import org.jetbrains.kotlin.fir.references.symbol
 import org.jetbrains.kotlin.fir.symbols.impl.FirClassSymbol
@@ -219,6 +220,7 @@ object DummyNameChecker : FirSimpleFunctionChecker(MppCheckerKind.Common), IrGen
 
                 //cfgNode.fir.replaceArgumentList(cfgNode.fir.argumentList.transformArguments(FirTest(), true))
                 val a = true
+
             }*/
             else -> {}
         }
@@ -285,29 +287,31 @@ object DummyNameChecker : FirSimpleFunctionChecker(MppCheckerKind.Common), IrGen
                 scopeInformation.Variables[name] = UsageInformation(Usage.BOTTOM, name, true)
             }
             is QualifiedAccessNode -> {
-                val name =
-                    cfgNode.fir.calleeReference.resolved?.name?.asString() ?:
-                    throw NullPointerException("callee is null")
-                
-                var atMostOnce = true
-                var found = false
-                var current: ScopeInformation? = scopeInformation
-                if (!current!!.Variables.containsKey(name)) {
-                    current = current.Parent
-                    while (current != null) {
-                        atMostOnce = atMostOnce && current.executedAtMostOnce
-                        if (current.Variables.containsKey(name)) {
-                            found = true
-                            break
-                        }
+                if (cfgNode.fir.calleeReference !is FirThisReference) {
+                    val name =
+                        cfgNode.fir.calleeReference.resolved?.name?.asString()
+                            ?: throw NullPointerException("callee is null")
+
+                    var atMostOnce = true
+                    var found = false
+                    var current: ScopeInformation? = scopeInformation
+                    if (!current!!.Variables.containsKey(name)) {
                         current = current.Parent
+                        while (current != null) {
+                            atMostOnce = atMostOnce && current.executedAtMostOnce
+                            if (current.Variables.containsKey(name)) {
+                                found = true
+                                break
+                            }
+                            current = current.Parent
+                        }
                     }
-                }
-                if (found) {
-                    if (atMostOnce) {
-                        current!!.Variables[name]!!.UsageAmount = upUsage(current.Variables[name]!!.UsageAmount)
-                    } else {
-                        current!!.Variables[name]!!.UsageAmount = Usage.UNKNOWN
+                    if (found) {
+                        if (atMostOnce) {
+                            current!!.Variables[name]!!.UsageAmount = upUsage(current.Variables[name]!!.UsageAmount)
+                        } else {
+                            current!!.Variables[name]!!.UsageAmount = Usage.UNKNOWN
+                        }
                     }
                 }
             }
@@ -832,17 +836,18 @@ class UsageInformation (var UsageAmount : Usage, val name : String, val topScope
     val Variables : MutableMap<String, UsageInformation> = mutableMapOf()
 }
 
-class lmao()
-{
+class Something {
+
     fun dummy2() {
         val blub = listOf("a", "b", "c")
-        val asdf : List<String> = blub.mapMutate (Mutate.NO, this::identity)
+        val asdf: List<String> = blub.mapMutate(Mutate.NO, this::identity)
     }
 
+    fun test(mutate : Mutate) {
 
+    }
 
-    fun <A> identity(ret : A) : A
-    {
+    fun <A> identity(ret: A): A {
         return ret
     }
 
@@ -857,8 +862,9 @@ class lmao()
                 }
                 this
             }
+
             else -> this.map(transform)
         }
 
-    enum class Mutate {YES, NO}
+    enum class Mutate { YES, NO }
 }

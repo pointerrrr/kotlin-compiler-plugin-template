@@ -7,7 +7,6 @@ true
 sub-scope:
 true
 blub ONCE
-<no name provided> BOTTOM
 asdf BOTTOM
 
 Function call arguments enter
@@ -15,7 +14,6 @@ true
 sub-scope:
 true
 blub ONCE
-<no name provided> BOTTOM
 asdf BOTTOM
 sub-scope:
 true
@@ -25,7 +23,6 @@ true
 sub-scope:
 true
 blub ONCE
-<no name provided> BOTTOM
 asdf BOTTOM
 sub-scope:
 true
@@ -35,7 +32,6 @@ true
 sub-scope:
 true
 blub ONCE
-<no name provided> BOTTOM
 asdf BOTTOM
 sub-scope:
 true
@@ -45,7 +41,6 @@ true
 sub-scope:
 true
 blub ONCE
-<no name provided> BOTTOM
 asdf BOTTOM
 sub-scope:
 true
@@ -55,7 +50,6 @@ true
 sub-scope:
 true
 blub ONCE
-<no name provided> BOTTOM
 asdf BOTTOM
 
 Function call: R|kotlin/collections/listOf|<R|kotlin/String|>(...)
@@ -63,7 +57,6 @@ true
 sub-scope:
 true
 blub ONCE
-<no name provided> BOTTOM
 asdf BOTTOM
 
 Variable declaration: lval blub: R|kotlin/collections/List<kotlin/String>|
@@ -71,15 +64,6 @@ true
 sub-scope:
 true
 blub ONCE
-<no name provided> BOTTOM
-asdf BOTTOM
-
-Variable declaration: lval <no name provided>: <ERROR TYPE REF: Cannot infer variable type without initializer / getter / delegate>
-true
-sub-scope:
-true
-blub ONCE
-<no name provided> BOTTOM
 asdf BOTTOM
 
 Function call arguments enter
@@ -87,7 +71,6 @@ true
 sub-scope:
 true
 blub ONCE
-<no name provided> BOTTOM
 asdf BOTTOM
 sub-scope:
 true
@@ -97,37 +80,42 @@ true
 sub-scope:
 true
 blub ONCE
-<no name provided> BOTTOM
 asdf BOTTOM
 sub-scope:
 true
 
-Access qualifier foo/bar/Mutate
+Access qualifier foo/bar/Something.Mutate
 true
 sub-scope:
 true
 blub ONCE
-<no name provided> BOTTOM
 asdf BOTTOM
 sub-scope:
 true
 
-Access variable R|foo/bar/Mutate.YES|
+Access variable R|foo/bar/Something.Mutate.YES|
 true
 sub-scope:
 true
 blub ONCE
-<no name provided> BOTTOM
 asdf BOTTOM
 sub-scope:
 true
 
-Callable reference: ::R|foo/bar/identity<kotlin/String>|
+Access variable this@R|foo/bar/Something|
 true
 sub-scope:
 true
 blub ONCE
-<no name provided> BOTTOM
+asdf BOTTOM
+sub-scope:
+true
+
+Callable reference: this@R|foo/bar/Something|::R|foo/bar/Something.identity<kotlin/String>|
+true
+sub-scope:
+true
+blub ONCE
 asdf BOTTOM
 sub-scope:
 true
@@ -137,15 +125,13 @@ true
 sub-scope:
 true
 blub ONCE
-<no name provided> BOTTOM
 asdf BOTTOM
 
-Function call: R|<local>/blub|.R|foo/bar/mapMutate|<R|kotlin/String|, R|kotlin/String|>(...)
+Function call: (this@R|foo/bar/Something|, R|<local>/blub|).R|foo/bar/Something.mapMutate|<R|kotlin/String|, R|kotlin/String|>(...)
 true
 sub-scope:
 true
 blub ONCE
-<no name provided> BOTTOM
 asdf BOTTOM
 
 Variable declaration: lval asdf: R|kotlin/collections/List<kotlin/String>|
@@ -153,7 +139,6 @@ true
 sub-scope:
 true
 blub ONCE
-<no name provided> BOTTOM
 asdf BOTTOM
 
 Exit block
