@@ -1,10 +1,13 @@
 package foo.bar
-
 class Something {
 
-    fun dummy2() {
+    fun dummy2(@Usage(UsageAmount.ONCE) test : Int) {
         val blub = listOf("a", "b", "c")
         val asdf: List<String> = blub.mapMutate(Mutate.NO, this::identity)
+    }
+
+    fun test(mutate : Mutate) {
+
     }
 
     fun <A> identity(ret: A): A {
@@ -12,7 +15,7 @@ class Something {
     }
 
     // invariant: if Mutate.YES ==> B : A
-    fun <A, B> List<A>.mapMutate(shouldMutate: Mutate = Mutate.NO, transform: (A) -> B): List<B> =
+    fun <A, B> List<A>.mapMutate(@Usage(UsageAmount.ONCE)shouldMutate: Mutate = Mutate.NO, transform: (A) -> B): List<B> =
         when {
             shouldMutate == Mutate.YES && this is MutableList<*> -> {
                 val me: MutableList<A> = this as MutableList<A>
@@ -27,5 +30,8 @@ class Something {
         }
 
     enum class Mutate { YES, NO }
-}
 
+    enum class UsageAmount {ONCE, AT_LEAST_ONCE}
+
+    annotation class Usage (val usage : UsageAmount)
+}

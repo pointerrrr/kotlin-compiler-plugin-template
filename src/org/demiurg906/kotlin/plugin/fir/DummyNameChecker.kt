@@ -244,8 +244,13 @@ object DummyNameChecker : FirSimpleFunctionChecker(MppCheckerKind.Common), IrGen
                 if(parentCount > 1) {
                     throw Exception("Parent count > 1 on EnterNodeMarker")
                 }
-                else if (parentCount == 0) {
-                    ScopeInformation(executedAtMostOnce)
+                else if (parentCount == 0) { // entry node
+                    if (cfgNode is FunctionEnterNode) {
+                        cfgNode.fir.valueParameters
+                        ScopeInformation(executedAtMostOnce)
+                    }
+                    else
+                        ScopeInformation(executedAtMostOnce)
                 }
                 else {
                     val parentScope = visited[cfgNode.previousNodes.first{!cfgNode.edgeFrom(it).kind.isBack}]!!
@@ -270,7 +275,7 @@ object DummyNameChecker : FirSimpleFunctionChecker(MppCheckerKind.Common), IrGen
                     val parents = cfgNode.previousNodes.map{ cfgNode.edgeFrom(it).kind  }
                     throw Error("Parent count > 1 on non-marker")
                 }
-                if(parentCount == 0) {
+                if(parentCount == 0) { // entry node ?
                     ScopeInformation(executedAtMostOnce)
                 }
                 else {
@@ -838,7 +843,7 @@ class UsageInformation (var UsageAmount : Usage, val name : String, val topScope
 
 class Something {
 
-    fun dummy2() {
+    fun dummy2(@Usage(UsageAmount.ONCE) test : Int) {
         val blub = listOf("a", "b", "c")
         val asdf: List<String> = blub.mapMutate(Mutate.NO, this::identity)
     }
@@ -852,7 +857,7 @@ class Something {
     }
 
     // invariant: if Mutate.YES ==> B : A
-    fun <A, B> List<A>.mapMutate(shouldMutate: Mutate = Mutate.NO, transform: (A) -> B): List<B> =
+    fun <A, B> List<A>.mapMutate(@Usage(UsageAmount.ONCE)shouldMutate: Mutate = Mutate.NO, transform: (A) -> B): List<B> =
         when {
             shouldMutate == Mutate.YES && this is MutableList<*> -> {
                 val me: MutableList<A> = this as MutableList<A>
@@ -867,4 +872,8 @@ class Something {
         }
 
     enum class Mutate { YES, NO }
+
+    enum class UsageAmount {ONCE, AT_LEAST_ONCE}
+
+    annotation class Usage (val usage : UsageAmount)
 }
