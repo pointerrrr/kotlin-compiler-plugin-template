@@ -144,11 +144,9 @@ object DummyNameChecker : FirSimpleFunctionChecker(MppCheckerKind.Common), IrGen
                         val usageVar = arguments.firstOrNull() as? FirPropertyAccessExpression
                         if (usageVar != null) {
                             val calleeReference = usageVar.calleeReference
-                            //if (calleeReference is FirResolvedCallableReference) {
                             if (calleeReference is FirResolvedNamedReference) {
 
                                 val symbol = usageVar.calleeReference.symbol
-                                //if (symbol is FirPropertySymbol) {
                                 if (symbol is FirEnumEntrySymbol) {
                                     val classSymbol = symbol.getContainingClassSymbol(session)
                                     if (classSymbol is FirClassSymbol) {
@@ -159,7 +157,6 @@ object DummyNameChecker : FirSimpleFunctionChecker(MppCheckerKind.Common), IrGen
                                             resolvedSymbol = theOne
                                         }
                                         usageVar.replaceCalleeReference(result)
-                                        val x = 5
                                     }
 
                                 }
@@ -183,47 +180,6 @@ object DummyNameChecker : FirSimpleFunctionChecker(MppCheckerKind.Common), IrGen
     // pre-condition: cfgNode is not part of visited and all parent of cfgNode are part of visited
     private fun findUsage(cfgNode : CFGNode<*>, visited: MutableMap<CFGNode<*>, ScopeInformation> = mutableMapOf(), session: FirSession) : Map<CFGNode<*>,ScopeInformation>
     {
-        when (cfgNode) {
-            /*is FunctionCallNode -> {
-                val calVar1 = cfgNode.fir.argumentList.arguments.firstOrNull()
-                val calVar = calVar1 as? FirPropertyAccessExpression
-                if (calVar != null) {
-                    val calleeReference = calVar.calleeReference
-                    //if (calleeReference is FirResolvedCallableReference) {
-                    if (calleeReference is FirResolvedNamedReference) {
-
-                        val symbol = calVar.calleeReference.symbol
-                        //if (symbol is FirPropertySymbol) {
-                        if (symbol is FirEnumEntrySymbol) {
-                            val classSymbol = symbol.getContainingClassSymbol(session)
-                            if (classSymbol is FirClassSymbol) {
-                                val theOne = classSymbol.declarationSymbols[1] as FirEnumEntrySymbol
-
-                                /*val result = buildResolvedCallableReference {
-                                    source = calleeReference.source
-                                    name = theOne.name
-                                    resolvedSymbol = theOne
-                                    inferredTypeArguments.addAll(calleeReference.inferredTypeArguments)
-                                    mappedArguments = calleeReference.mappedArguments
-                                }*/
-                                val result = buildResolvedNamedReference {
-                                    source = calleeReference.source
-                                    name = theOne.name
-                                    resolvedSymbol = theOne
-                                }
-                                calVar.replaceCalleeReference(result)
-                            }
-
-                        }
-                    }
-                }
-
-                //cfgNode.fir.replaceArgumentList(cfgNode.fir.argumentList.transformArguments(FirTest(), true))
-                val a = true
-
-            }*/
-            else -> {}
-        }
         val executedAtMostOnce = when (cfgNode)
         {
             is EnterNodeMarker -> {
@@ -246,8 +202,12 @@ object DummyNameChecker : FirSimpleFunctionChecker(MppCheckerKind.Common), IrGen
                 }
                 else if (parentCount == 0) { // entry node
                     if (cfgNode is FunctionEnterNode) {
-                        cfgNode.fir.valueParameters
-                        ScopeInformation(executedAtMostOnce)
+                        val scopeInformation = ScopeInformation(executedAtMostOnce)
+                        for (valueParameter in cfgNode.fir.valueParameters) {
+                            val name =valueParameter.name.toString()
+                            scopeInformation.Variables[name] = UsageInformation(Usage.BOTTOM, name, true)
+                        }
+                        scopeInformation
                     }
                     else
                         ScopeInformation(executedAtMostOnce)
@@ -283,7 +243,8 @@ object DummyNameChecker : FirSimpleFunctionChecker(MppCheckerKind.Common), IrGen
                 }
             }
         }
-        visited[cfgNode] = scopeInformation
+        visited[cfgNode] =
+            scopeInformation
         when (cfgNode) {
             is VariableDeclarationNode -> {
                 val name = cfgNode.fir.name.asString()
