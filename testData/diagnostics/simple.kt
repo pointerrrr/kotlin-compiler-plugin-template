@@ -1,9 +1,12 @@
 package foo.bar
 class Something {
 
-    fun dummy2(@Usage(UsageAmount.ONCE) test : Int) {
+    fun dummy2(@Usage(UsageAmount.ONCE) test : Int, test2 : Int) {
         val blub = listOf("a", "b", "c")
+        val lmao = test + test
+        val lmao2 = lmao + test2
         val asdf: List<String> = blub.mapMutate(Mutate.NO, this::identity)
+        val wut = blub.mapMutate(Mutate.NO, this::identity)
     }
 
     fun test(mutate : Mutate) {
@@ -31,7 +34,7 @@ class Something {
 
     enum class Mutate { YES, NO }
 
-    enum class UsageAmount {ONCE, AT_LEAST_ONCE}
+    enum class UsageAmount {BOTTOM, ZERO, ONCE, INFINITE, AT_MOST_ONCE, ONCE_OR_MORE, UNKNOWN}
 
     annotation class Usage (val usage : UsageAmount)
 }

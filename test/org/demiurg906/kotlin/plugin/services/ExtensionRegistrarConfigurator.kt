@@ -20,7 +20,6 @@ class ExtensionRegistrarConfigurator(testServices: TestServices) : EnvironmentCo
     ) {
         FirExtensionRegistrarAdapter.registerExtension(SimplePluginRegistrar())
         IrGenerationExtension.registerExtension(SimpleIrGenerationExtension())
-        IrGenerationExtension.registerExtension(DummyNameChecker)
         FirExtensionRegistrarAdapter.registerExtension(FirPluginPrototypeExtensionRegistrar())
     }
 }

@@ -13,8 +13,10 @@ import org.jetbrains.kotlin.diagnostics.rendering.RootDiagnosticRendererFactory
 import org.jetbrains.kotlin.fir.FirSession
 import org.jetbrains.kotlin.fir.analysis.checkers.getContainingClassSymbol
 import org.jetbrains.kotlin.fir.analysis.diagnostics.FirDiagnosticRenderers
+import org.jetbrains.kotlin.fir.declarations.FirValueParameter
 import org.jetbrains.kotlin.fir.expressions.*
 import org.jetbrains.kotlin.fir.expressions.impl.FirPropertyAccessExpressionImpl
+import org.jetbrains.kotlin.fir.expressions.impl.FirResolvedArgumentList
 import org.jetbrains.kotlin.fir.references.resolved
 import org.jetbrains.kotlin.fir.resolve.dfa.cfg.*
 import org.jetbrains.kotlin.fir.resolve.dfa.controlFlowGraph
@@ -41,75 +43,64 @@ object PluginErrors {
 
 object PluginRenderer: BaseDiagnosticRendererFactory() {
     override val MAP: KtDiagnosticFactoryToRendererMap = KtDiagnosticFactoryToRendererMap("Plugin").apply {
-        put(PluginErrors.FUNCTION_WITH_DUMMY_NAME, "Function with dummy name: {0}", FirDiagnosticRenderers.DECLARATION_NAME)
+        put(PluginErrors.FUNCTION_WITH_DUMMY_NAME, "Specified argument usage does not match actual usage: {0}", FirDiagnosticRenderers.DECLARATION_NAME)
     }
 }
 
-/*class FirTest : FirVisitorVoid() {
-    override fun visitPropertyAccessExpression(propertyAccessExpression: FirPropertyAccessExpression) {
-        if(propertyAccessExpression.calleeReference is FirResolvedCallableReference) {
-            if(propertyAccessExpression.calleeReference.symbol is FirPropertySymbol) {
-                (propertyAccessExpression.calleeReference.symbol as FirPropertySymbol).fir
-            }
-        }
-        propertyAccessExpression.replaceCalleeReference()
-        super.visitPropertyAccessExpression(propertyAccessExpression)
-    }
 
-
-
-    override fun transformPropertyAccessExpression(
-        propertyAccessExpression: FirPropertyAccessExpression,
-        data: Boolean
-    ): FirStatement {
-        propertyAccessExpression.replaceCalleeReference()
-
-        return buildPropertyAccessExpression(){
-            source = propertyAccessExpression.source
-            calleeReference =
-        }
-    }
-
-}*/
-
-/*class FirVisitorTest : FirVisitor() {
-
-}*/
-
-object DummyNameChecker : FirSimpleFunctionChecker(MppCheckerKind.Common), IrGenerationExtension {
+object DummyNameChecker : FirSimpleFunctionChecker(MppCheckerKind.Common) {
     override fun check(declaration: FirSimpleFunction, context: CheckerContext, reporter: DiagnosticReporter) {
         val name = declaration.symbol.name.asString()
         //reporter.reportOn(declaration.source, PluginErrors.FUNCTION_WITH_DUMMY_NAME, declaration.symbol, context)
         if (name.contains("dummy")) {
             reporter.reportOn(declaration.source, PluginErrors.FUNCTION_WITH_DUMMY_NAME, declaration.symbol, context)
             val file = File("output.txt")
-            printCFG(declaration.controlFlowGraphReference?.controlFlowGraph, file, context.session)
+            printCFG(declaration.controlFlowGraphReference?.controlFlowGraph, file, context.session, declaration, context, reporter)
         }
     }
 
-    override fun generate(moduleFragment: IrModuleFragment, pluginContext: IrPluginContext) {
-        val blub = moduleFragment.dumpKotlinLike()
-
-    }
-
-    fun printCFG(cfg : ControlFlowGraph?, file : File, session : FirSession)
+    fun printCFG(cfg : ControlFlowGraph?, file : File, session : FirSession, declaration: FirSimpleFunction,
+                 context: CheckerContext, reporter: DiagnosticReporter)
     {
         if (cfg == null)
             return
         file.writeText(cfg.name + "\n")
         val variableUsage = mutableMapOf<Name, Usage>()
-        //printNode(cfg.enterNode, file, variableUsage, mutableSetOf())
-        //file.appendText(variableUsage.toString())
         val functionArgScopeInformation = ScopeInformation(true)
         val tree = createTree(cfg.enterNode, 0, mutableMapOf(), IntRef(), functionArgScopeInformation)
-        //file.appendText("{${tree.printNode()}}")
         val usage = findUsage(cfg.enterNode, session = session)
         findAndChangeFunctions(cfg.enterNode, usage, session)
+        verifyUsageOfArguments(cfg.enterNode, usage, declaration, context, reporter)
         file.appendText(printResult(usage))
 
     }
 
-    fun printResult(info : Map<CFGNode<*>, ScopeInformation>, visited : MutableSet<CFGNode<*>> = mutableSetOf()) : String
+    private fun verifyUsageOfArguments(cfgNode: CFGNode<*>, usage: Map<CFGNode<*>, ScopeInformation>,
+                                       declaration: FirSimpleFunction, context: CheckerContext, reporter: DiagnosticReporter) {
+        val scopeInformation = usage[cfgNode] ?: return
+        if (cfgNode !is FunctionEnterNode)
+            return
+        for (valueParameter in cfgNode.fir.valueParameters) {
+            val name = valueParameter.name.toString()
+            val usage = scopeInformation.Variables[name]!!.UsageAmount.name
+            val usageAnnotation = valueParameter.annotations.firstOrNull(this::findUsageAnnotation) as? FirAnnotationCall ?: return
+            val usageAmount = (usageAnnotation.argumentList as FirResolvedArgumentList).originalArgumentList?.arguments?.first() as FirPropertyAccessExpression
+            val usageAmountName = (usageAmount.calleeReference as FirResolvedNamedReference).name.toString()
+            if(usage != usageAmountName) {
+                reporter.reportOn(declaration.source, PluginErrors.FUNCTION_WITH_DUMMY_NAME, declaration.symbol, context)
+            }
+        }
+    }
+
+    private fun findUsageAnnotation (annotation: FirAnnotation) : Boolean {
+        if (annotation !is FirAnnotationCall || annotation.calleeReference !is FirResolvedNamedReference)
+            return false
+        if ((annotation.calleeReference as FirResolvedNamedReference).name.toString() == "Usage")
+            return true
+        return false
+    }
+
+    private fun printResult(info : Map<CFGNode<*>, ScopeInformation>, visited : MutableSet<CFGNode<*>> = mutableSetOf()) : String
     {
         var result = ""
         info.forEach{
@@ -204,7 +195,7 @@ object DummyNameChecker : FirSimpleFunctionChecker(MppCheckerKind.Common), IrGen
                     if (cfgNode is FunctionEnterNode) {
                         val scopeInformation = ScopeInformation(executedAtMostOnce)
                         for (valueParameter in cfgNode.fir.valueParameters) {
-                            val name =valueParameter.name.toString()
+                            val name = valueParameter.name.toString()
                             scopeInformation.Variables[name] = UsageInformation(Usage.BOTTOM, name, true)
                         }
                         scopeInformation
@@ -834,7 +825,7 @@ class Something {
 
     enum class Mutate { YES, NO }
 
-    enum class UsageAmount {ONCE, AT_LEAST_ONCE}
+    enum class UsageAmount {BOTTOM, ZERO, ONCE, INFINITE, AT_MOST_ONCE, ONCE_OR_MORE, UNKNOWN}
 
     annotation class Usage (val usage : UsageAmount)
 }
