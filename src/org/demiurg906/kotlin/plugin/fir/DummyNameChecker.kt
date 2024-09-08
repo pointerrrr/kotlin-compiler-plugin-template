@@ -125,7 +125,14 @@ object DummyNameChecker : FirSimpleFunctionChecker(MppCheckerKind.Common) {
             is FunctionCallNode -> {
                 if (cfgNode.fir.calleeReference.name.toString() == "mapMutate") {
                     val arguments = cfgNode.fir.argumentList.arguments
-                    val calVar = cfgNode.fir.extensionReceiver as FirPropertyAccessExpression
+
+                    var extensionReceiver = cfgNode.fir.extensionReceiver
+                    while (extensionReceiver is FirFunctionCall && extensionReceiver.extensionReceiver != null) {
+                        extensionReceiver = extensionReceiver.extensionReceiver
+                    }
+                    var calVar = extensionReceiver as? FirPropertyAccessExpression
+                        ?: throw NullPointerException("extension receiver is null")
+
                     val namedReference = calVar.calleeReference as FirResolvedNamedReference
                     val varName = namedReference.name.toString()
                     if (!usage.containsKey(cfgNode))
@@ -149,12 +156,10 @@ object DummyNameChecker : FirSimpleFunctionChecker(MppCheckerKind.Common) {
                                         }
                                         usageVar.replaceCalleeReference(result)
                                     }
-
                                 }
                             }
                         }
                     }
-
                 }
             }
             else -> {}
@@ -793,11 +798,14 @@ class UsageInformation (var UsageAmount : Usage, val name : String, val topScope
     val Variables : MutableMap<String, UsageInformation> = mutableMapOf()
 }
 
+
 class Something {
 
-    fun dummy2(@Usage(UsageAmount.ONCE) test : Int) {
+    fun dummy2(@Usage(UsageAmount.ONCE) test : Int, test2 : Int) {
         val blub = listOf("a", "b", "c")
-        val asdf: List<String> = blub.mapMutate(Mutate.NO, this::identity)
+        val lmao = test + test
+        val lmao2 = lmao + test2
+        val asdf: List<String> = blub.mapMutate(Mutate.NO, this::identity).mapMutate(Mutate.NO, this::identity)
     }
 
     fun test(mutate : Mutate) {

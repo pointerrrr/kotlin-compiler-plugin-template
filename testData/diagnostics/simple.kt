@@ -1,12 +1,12 @@
 package foo.bar
+
 class Something {
 
     fun dummy2(@Usage(UsageAmount.ONCE) test : Int, test2 : Int) {
         val blub = listOf("a", "b", "c")
         val lmao = test + test
         val lmao2 = lmao + test2
-        val asdf: List<String> = blub.mapMutate(Mutate.NO, this::identity)
-        val wut = blub.mapMutate(Mutate.NO, this::identity)
+        val asdf: List<String> = blub.mapMutate(Mutate.NO, this::identity).mapMutate(Mutate.NO, this::identity).mapMutate(Mutate.NO, this::identity)
     }
 
     fun test(mutate : Mutate) {
